@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="cma.sqlite" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure query browser pragmas" current="0"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="3366"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="anomaly_result" custom_title="0" dock_id="2" table="4,14:mainanomaly_result"/><dock_state state="000000ff00000000fd0000000100000002000002480000020bfc0100000002fb000000160064006f0063006b00420072006f00770073006500310100000000ffffffff0000000000000000fb000000160064006f0063006b00420072006f00770073006500320100000000000002480000011700ffffff000002480000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1*">CREATE TABLE borrower (
+    borrower_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT    NOT NULL UNIQUE,
+    cin           TEXT,
+    industry      TEXT,
+    constitution  TEXT,
+    rbi_sector    TEXT,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE financials (
+    fin_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    borrower_id         INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    fy_end              DATE    NOT NULL,
+    audited             INTEGER NOT NULL DEFAULT 1,
+    total_assets        REAL,
+    total_liabilities   REAL,
+    current_assets      REAL,
+    current_liabilities REAL,
+    working_capital     REAL,
+    net_income          REAL,
+    ebit                REAL,
+    ebitda              REAL,
+    ffo                 REAL,
+    depreciation        REAL,
+    sga                 REAL,
+    cogs                REAL,
+    sales               REAL,
+    receivables         REAL,
+    ppe                 REAL,
+    securities          REAL,
+    long_term_debt      REAL,
+    tnw                 REAL,
+    tol                 REAL,
+    dscr                REAL,
+    interest_cost       REAL,
+    UNIQUE(borrower_id, fy_end)
+);
+
+CREATE TABLE cashflow_weekly (
+    cf_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    borrower_id     INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    week_end        DATE    NOT NULL,
+    inflow          REAL,
+    outflow         REAL,
+    net             REAL,
+    opening_balance REAL,
+    closing_balance REAL,
+    UNIQUE(borrower_id, week_end)
+);
+
+CREATE TABLE forecast_run (
+    run_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    borrower_id     INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    run_ts          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    model           TEXT,
+    horizon_wks     INTEGER,
+    rmse_backtest   REAL
+);
+
+CREATE TABLE forecast_point (
+    run_id      INTEGER NOT NULL REFERENCES forecast_run(run_id),
+    week_end    DATE,
+    point       REAL,
+    lo_80       REAL,
+    hi_80       REAL,
+    lo_95       REAL,
+    hi_95       REAL,
+    PRIMARY KEY(run_id, week_end)
+);
+
+CREATE TABLE anomaly_result (
+    anom_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    borrower_id INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    detector    TEXT NOT NULL,
+    run_ts      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    score       REAL,
+    threshold   REAL,
+    is_flagged  INTEGER,
+    notes       TEXT
+);
+
+CREATE TABLE narrative (
+    narr_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    borrower_id     INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    run_ts          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    agent           TEXT NOT NULL,
+    model           TEXT,
+    prompt_hash     TEXT,
+    output_text     TEXT,
+    parent_narr_id  INTEGER REFERENCES narrative(narr_id)
+);
+
+CREATE TABLE macro_indicators (
+    indicator_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    indicator_name  TEXT NOT NULL,
+    value_date      DATE NOT NULL,
+    value           REAL,
+    source          TEXT,
+    UNIQUE(indicator_name, value_date)
+);
+
+CREATE TABLE rbi_cache (
+    link        TEXT PRIMARY KEY,
+    title       TEXT,
+    published   TEXT,
+    summary     TEXT,
+    fetched_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_fin_borr   ON financials(borrower_id, fy_end);
+CREATE INDEX idx_cf_borr    ON cashflow_weekly(borrower_id, week_end);
+CREATE INDEX idx_narr_borr  ON narrative(borrower_id, run_ts);
+CREATE INDEX idx_anom_borr  ON anomaly_result(borrower_id, run_ts);</sql><current_tab id="0"/></tab_sql></sqlb_project>
