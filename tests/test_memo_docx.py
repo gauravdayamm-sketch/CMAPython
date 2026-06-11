@@ -32,7 +32,9 @@ def test_memo_generates_with_all_sections(ingested, tmp_path):
             "5. Red Flags, Exceptions & RBI EWS",
             "6. Projection Scrutiny (vs ETS bands)",
             "7. Questions for the Presenting Analyst",
-            "8. Credit Committee Narrative (AI-drafted)"):
+            "8. Credit Committee Narrative (AI-drafted)",
+            "9. Committee Member's Remarks",
+            "Annexure A — Glossary for Committee Members"):
         assert any(expected_heading in h for h in headings), expected_heading
 
     # Mandatory disclaimer appears (top and bottom)
@@ -40,6 +42,12 @@ def test_memo_generates_with_all_sections(ingested, tmp_path):
     # Form V content present with real numbers
     assert any("Working Capital Gap" in c for c in cells)
     assert any("MPBF" in c for c in cells)
+    # Plain-language notes and glossary for non-credit members
+    assert any(p.startswith("Note: Reading this table") for p in paras)
+    assert any("Tandon" in c for c in cells)          # glossary entries
+    assert any("Maximum Permissible Bank Finance" in c for c in cells)
+    # Remarks section offers a decision line
+    assert any("☐ Approve" in p for p in paras)
 
 
 def test_memo_includes_latest_narrative(ingested, tmp_path):
