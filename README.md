@@ -4,6 +4,16 @@ Local-first credit analytics backend for CMA (Credit Monitoring Arrangement)
 workflows at Indian banks. Python does the math; Excel stays the front end;
 LLM narrative generation runs fully offline via Ollama. No cloud APIs.
 
+**Start here:** [docs/GUIDE.md](docs/GUIDE.md) — the desk officer's manual
+(also as a Word document in `docs/`). Everything is driven from one command:
+
+```powershell
+.\venv\Scripts\python.exe cma.py ingest "D:\path\to\LLMS exports"
+.\venv\Scripts\python.exe cma.py assess
+.\venv\Scripts\python.exe cma.py memo
+.\venv\Scripts\python.exe cma.py portfolio
+```
+
 ## Architecture
 
 ```

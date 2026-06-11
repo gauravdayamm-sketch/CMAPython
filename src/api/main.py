@@ -410,6 +410,14 @@ def intel_registry_record(req: RegistryRequest):
     return {"status": "recorded"}
 
 
+@app.get("/portfolio")
+def portfolio():
+    """One row per borrower with CMA data — the whole book, worst first."""
+    from analytics.portfolio import portfolio_summary
+    book = portfolio_summary()
+    return {"count": len(book), "borrowers": book}
+
+
 @app.get("/cma/queries")
 def cma_queries(borrower_name: Optional[str] = None):
     """Committee questions for the presenting analyst, generated from
