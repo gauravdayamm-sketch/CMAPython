@@ -31,7 +31,8 @@ def test_memo_generates_with_all_sections(ingested, tmp_path):
             "4. Key Ratios vs Sanction Thresholds",
             "5. Red Flags, Exceptions & RBI EWS",
             "6. Projection Scrutiny (vs ETS bands)",
-            "7. Credit Committee Narrative (AI-drafted)"):
+            "7. Questions for the Presenting Analyst",
+            "8. Credit Committee Narrative (AI-drafted)"):
         assert any(expected_heading in h for h in headings), expected_heading
 
     # Mandatory disclaimer appears (top and bottom)

@@ -67,9 +67,15 @@ On top of the ingested data:
   via Ollama's JSON mode, and the EWS findings flow into the forensic
   agent's brief.
 - **Word export** (`report/memo_docx.py`) — the full credit memorandum
-  (snapshot, ensemble, Form V, ratios, EWS, projection scrutiny, AI
-  narrative with disclaimer) as a .docx, recomputed from the database at
-  export time. `POST /cma/memo` or part of the console demo.
+  (snapshot, ensemble, Form V, ratios, EWS, projection scrutiny, committee
+  queries, AI narrative with disclaimer) as a .docx, recomputed from the
+  database at export time. `POST /cma/memo` or part of the console demo.
+- **Committee queries** (`report/committee_queries.py`) — every breached
+  parameter, red flag, optimistic projection, estimate-vs-audit miss and
+  over-MPBF limit request generates the pointed questions a sanctioning
+  authority should put to the presenting analyst, with the triggering
+  figures cited. Deterministic (template-driven), priority-ordered.
+  `GET /cma/queries`, plus memo section 7.
 
 **Two ways in for borrower data:**
 

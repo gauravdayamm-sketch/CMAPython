@@ -202,8 +202,25 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     else:
         doc.add_paragraph(f"Not available: {scr['error']}")
 
-    # 7 ── Committee narrative
-    _heading(doc, "7. Credit Committee Narrative (AI-drafted)")
+    # 7 ── Questions for the presenting analyst
+    from report.committee_queries import generate_queries
+    _heading(doc, "7. Questions for the Presenting Analyst")
+    queries = generate_queries(name, db_path=db)
+    if queries:
+        doc.add_paragraph(
+            "Raised automatically from breached parameters, red flags and "
+            "optimistic projections — each question cites the figure that "
+            "prompted it. Priority 1 items go to the analyst first.")
+        for i, q in enumerate(queries, start=1):
+            p = doc.add_paragraph()
+            p.add_run(f"Q{i} [P{q['priority']}] {q['parameter']}: ").bold = True
+            p.add_run(q["observation"])
+            doc.add_paragraph(q["question"], style="Intense Quote")
+    else:
+        doc.add_paragraph("No adverse findings — no committee queries generated.")
+
+    # 8 ── Committee narrative
+    _heading(doc, "8. Credit Committee Narrative (AI-drafted)")
     narr = _latest_narrative(name, db)
     if narr:
         doc.add_paragraph(
@@ -220,5 +237,12 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     doc.add_paragraph()
     doc.add_paragraph(DISCLAIMER).runs[0].bold = True
 
-    doc.save(out_path)
+    try:
+        doc.save(out_path)
+    except PermissionError:
+        # Target is open in Word — save a timestamped copy instead
+        stamped = out_path.with_name(
+            f"{out_path.stem}_{datetime.datetime.now():%H%M%S}{out_path.suffix}")
+        doc.save(stamped)
+        return stamped
     return out_path

@@ -364,6 +364,15 @@ def cma_memo(req: MemoRequest):
     return {"path": str(path)}
 
 
+@app.get("/cma/queries")
+def cma_queries(borrower_name: Optional[str] = None):
+    """Committee questions for the presenting analyst, generated from
+    breached parameters, red flags and optimistic projections."""
+    from report.committee_queries import generate_queries
+    queries = generate_queries(borrower_name)
+    return {"count": len(queries), "queries": queries}
+
+
 @app.get("/scores")
 def scores(borrower_name: Optional[str] = None):
     """Ohlson + Altman Z″ + Zmijewski distress ensemble."""
