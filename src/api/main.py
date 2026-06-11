@@ -113,6 +113,10 @@ class EWSRequest(BaseModel):
     borrower_name: Optional[str] = None
     manual_triggers: list[int] = []
 
+class MemoRequest(BaseModel):
+    borrower_name: Optional[str] = None
+    out_path: Optional[str] = None
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -313,6 +317,17 @@ def cma_projections(borrower_name: Optional[str] = None):
     if result["error"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@app.post("/cma/memo")
+def cma_memo(req: MemoRequest):
+    """Export the full credit memorandum as a Word document."""
+    from report.memo_docx import generate_credit_memo
+    try:
+        path = generate_credit_memo(req.borrower_name, out_path=req.out_path)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"path": str(path)}
 
 
 @app.get("/scores")

@@ -34,3 +34,4 @@ Thumbs.db
 
 # Generated demo data
 data/demo_CMA_filled.xlsx
+data/*.docx

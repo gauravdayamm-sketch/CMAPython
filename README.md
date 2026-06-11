@@ -66,6 +66,10 @@ On top of the ingested data:
   memo footer for the analyst. The supervisor's verdict JSON is enforced
   via Ollama's JSON mode, and the EWS findings flow into the forensic
   agent's brief.
+- **Word export** (`report/memo_docx.py`) — the full credit memorandum
+  (snapshot, ensemble, Form V, ratios, EWS, projection scrutiny, AI
+  narrative with disclaimer) as a .docx, recomputed from the database at
+  export time. `POST /cma/memo` or part of the console demo.
 
 Run it from Excel (`run_cma_assessment` writes to Python_Output col U),
 the API (`POST /cma/ingest`, `GET /cma/assessment`, `GET /cma/projections`),
@@ -122,6 +126,7 @@ Endpoints (see `http://127.0.0.1:8000/docs`):
 | GET    | `/cma/projections`    | borrower projections vs ETS bands         |
 | POST   | `/cma/ews`            | red flags + exception tests + RBI EWS/RFA |
 | GET    | `/scores`             | Ohlson + Altman Z″ + Zmijewski ensemble   |
+| POST   | `/cma/memo`           | export credit memorandum as .docx         |
 
 **Excel bridge**: open `CMA_v9_python.xlsm` (xlwings add-in required, with the
 interpreter pointed at `venv\Scripts\python.exe`). The VBA buttons call

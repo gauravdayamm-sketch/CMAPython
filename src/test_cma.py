@@ -85,6 +85,16 @@ for f in a.red_flags:
     print(f"  ⚠ {f}")
 
 from analytics.ews import run_full_ews
+from analytics.scores import run_ensemble
+from report.memo_docx import generate_credit_memo
+
+ens = run_ensemble(data.borrower["name"])
+print()
+print(f"SCORE ENSEMBLE: {ens.verdict}")
+for s in (ens.ohlson, ens.altman, ens.zmijewski):
+    if s:
+        p = f"  p={s.prob:.1%}" if s.prob is not None else ""
+        print(f"  {s.model:<22} {s.score:>9}{p}  [{s.zone}]")
 
 ews = run_full_ews(data.borrower["name"])
 print()
@@ -111,3 +121,7 @@ for metric, entry in scr["metrics"].items():
     for p in entry["projections"]:
         print(f"    {p['fy_label']}  {p['value']:>9,.1f}  "
               f"[ETS {p['lo_80']:,.0f}–{p['hi_80']:,.0f}]  {p['verdict']}")
+
+print()
+memo_path = generate_credit_memo(data.borrower["name"])
+print(f"CREDIT MEMORANDUM EXPORTED: {memo_path}")
