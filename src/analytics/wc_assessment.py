@@ -146,12 +146,12 @@ def compute_year_metrics(L):
     gross_dscr = _div(nca + int_tl, inst + int_tl)
     net_dscr   = _div(nca, inst)
 
-    # Holding levels (sheet conventions: inventory & DSO vs sales,
-    # creditors vs RM+spares purchases)
+    # Holding levels. DSO divides by NET sales — the bank's LLMS system
+    # convention (verified against its Performance exports).
     purchases = L["os_total_rm"] + L["os_total_spares"]
     inv_days  = _div(L["bs_inventory_total"] * 365, net_sales)
     dso       = _div((L["bs_receivables_domestic"] + L["bs_receivables_export"]) * 365,
-                     L["os_gross_sales"])
+                     net_sales)
     dpo       = _div((L["bs_creditors_trade"] + L["bs_creditors_lc"]) * 365, purchases)
     ccc       = (inv_days or 0) + (dso or 0) - (dpo or 0) \
                 if None not in (inv_days, dso) else None

@@ -5,6 +5,7 @@ numpy==2.1.3
 # ── Excel & DB ────────────────────────────────────────────────────────
 xlwings==0.33.6
 openpyxl==3.1.5
+xlrd==2.0.1            # legacy .xls (LLMS system exports)
 
 # ── Analytics ─────────────────────────────────────────────────────────
 scikit-learn==1.5.2

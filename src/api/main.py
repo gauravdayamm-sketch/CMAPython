@@ -117,6 +117,12 @@ class MemoRequest(BaseModel):
     borrower_name: Optional[str] = None
     out_path: Optional[str] = None
 
+class LLMSIngestRequest(BaseModel):
+    bs_path: str
+    os_path: str
+    perf_path: Optional[str] = None
+    borrower_name: Optional[str] = None
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -317,6 +323,34 @@ def cma_projections(borrower_name: Optional[str] = None):
     if result["error"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@app.post("/cma/ingest-llms")
+def cma_ingest_llms(req: LLMSIngestRequest):
+    """Ingest a borrower's LLMS export set (BS + OS, optional Performance)."""
+    from ingest.llms_export import ingest_llms_set, reconcile_with_bank
+    data, bid = ingest_llms_set(req.bs_path, req.os_path,
+                                perf_path=req.perf_path,
+                                borrower_name=req.borrower_name)
+    if data.errors():
+        raise HTTPException(status_code=422, detail={
+            "message": "Ingestion failed validation",
+            "errors": data.errors(),
+        })
+    rec = reconcile_with_bank(data) if req.perf_path else []
+    return {
+        "borrower":    data.borrower["name"],
+        "borrower_id": bid,
+        "years":       [{"fy_label": y.fy_label,
+                         "statement_type": y.statement_type,
+                         "is_dual": y.is_dual} for y in data.years],
+        "issues":      [f"[{lvl}] {m}" for lvl, m in data.issues],
+        "reconciliation": {
+            "compared": len(rec),
+            "matched":  sum(1 for r in rec if r["match"]),
+            "mismatches": [r for r in rec if not r["match"]],
+        },
+    }
 
 
 @app.post("/cma/memo")

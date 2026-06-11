@@ -71,9 +71,25 @@ On top of the ingested data:
   narrative with disclaimer) as a .docx, recomputed from the database at
   export time. `POST /cma/memo` or part of the console demo.
 
+**Two ways in for borrower data:**
+
+1. The CMA workbook itself (`ingest/cma_workbook.py`).
+2. **LLMS system exports** (`ingest/llms_export.py`) — the per-statement
+   Balance_Sheet / Operating_Statement / Performance .xls or .csv files the
+   bank system produces. Rows are matched by label within section (robust to
+   row drift), amounts carried only on total rows are absorbed with an audit
+   note, top-level totals defer to the export, and debt service uses the
+   prior column's "instalments due within 1 year" — conventions verified to
+   **99%+ reconciliation against the bank's own Performance-file indicators**
+   on real borrower exports. Batch-run a folder:
+
+   ```powershell
+   .\venv\Scripts\python.exe scripts\run_llms_pipeline.py "D:\path\to\exports"
+   ```
+
 Run it from Excel (`run_cma_assessment` writes to Python_Output col U),
-the API (`POST /cma/ingest`, `GET /cma/assessment`, `GET /cma/projections`),
-or the console demo:
+the API (`POST /cma/ingest`, `POST /cma/ingest-llms`, `GET /cma/assessment`,
+`GET /cma/projections`), or the console demo:
 
 ```powershell
 .\venv\Scripts\python.exe src\test_cma.py   # generates a synthetic demo if
