@@ -273,6 +273,37 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
                "term debt. Day-count ratios (DSO, inventory days, DPO) show "
                "where cash is stuck in the cycle. Annexure A explains each.")
 
+    # 4b ── Peer & industry positioning
+    try:
+        from analytics.benchmark import benchmark as run_benchmark
+        bm = run_benchmark(name, db_path=db)
+        if not bm["error"] and bm["n_peers"] >= 2:
+            doc.add_paragraph()
+            doc.add_paragraph(
+                f"Peer positioning vs {bm['peer_set']} "
+                f"({bm['n_peers']} peers):")
+            pct_keys = ("ebitda_margin", "pat_margin", "sales_growth")
+
+            def f(v, key):
+                if v is None:
+                    return "—"
+                return f"{v:.1%}" if key in pct_keys else f"{v:.2f}"
+
+            _table(doc,
+                   [(r["metric"], f(r["value"], r["key"]),
+                     f(r["peer_median"], r["key"]),
+                     f"{r['percentile']}" if r["percentile"] is not None else "—",
+                     f(r["norm_median"], r["key"]))
+                    for r in bm["rows"]],
+                   header=("Metric", "Borrower", "Peer median",
+                           "Percentile", "Industry norm"))
+            _note(doc, "Percentile = share of peers this borrower beats "
+                       "(100 = best in book). Peers are other borrowers "
+                       "assessed through this tool; industry norms are "
+                       "sector medians from public rating-agency data.")
+    except Exception:
+        pass
+
     # 5 ── Red flags / EWS
     _heading(doc, "5. Red Flags, Exceptions & RBI EWS")
     if not ews.error:

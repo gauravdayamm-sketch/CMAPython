@@ -183,6 +183,76 @@ def cmd_committee(args):
     print("\nRe-export the memo to include this narrative: python cma.py memo")
 
 
+def cmd_benchmark(args):
+    from analytics.benchmark import benchmark
+    from analytics.wc_assessment import assess_working_capital
+    name = args.borrower
+    if name is None:
+        a = assess_working_capital(None)
+        if a.error:
+            sys.exit(a.error)
+        name = a.borrower_name
+    r = benchmark(name)
+    if r["error"]:
+        sys.exit(r["error"])
+    print(f"═══ {r['borrower']} vs {r['peer_set']} "
+          f"[{r['n_peers']} peers] ═══")
+    print(f"{'Metric':<20}{'Borrower':>10}{'Peer med.':>11}{'%ile':>6}"
+          f"{'Norm':>8}  Source")
+    for row in r["rows"]:
+        fmt = (lambda v: "—" if v is None else
+               (f"{v:.1%}" if row["key"] in
+                ("ebitda_margin", "pat_margin", "sales_growth")
+                else f"{v:.1f}" if row["key"] == "dso" else f"{v:.2f}"))
+        pct = f"{row['percentile']}" if row["percentile"] is not None else "—"
+        print(f"{row['metric']:<20}{fmt(row['value']):>10}"
+              f"{fmt(row['peer_median']):>11}{pct:>6}"
+              f"{fmt(row['norm_median']):>8}  {row['norm_source'] or ''}")
+    if r["weak_metrics"]:
+        print(f"\nBottom quartile of peers on: {', '.join(r['weak_metrics'])}")
+
+
+def cmd_norms(args):
+    from analytics.benchmark import set_norms, get_norms
+    if args.set:
+        values = {}
+        for pair in args.set:
+            k, _, v = pair.partition("=")
+            values[k] = float(v)
+        set_norms(args.industry, values, source=args.source or "")
+        print(f"✓ norms recorded for {args.industry}")
+    for n in get_norms(args.industry if args.industry != "--list" else None):
+        print(f"  {n['industry']:<22}{n['metric']:<16}{n['median']:<10}"
+              f"{n['updated_on']}  {n['source']}")
+
+
+def cmd_industry(args):
+    from analytics.benchmark import set_industry
+    try:
+        set_industry(args.name, args.industry)
+    except ValueError as e:
+        sys.exit(str(e))
+    print(f"✓ {args.name} → industry '{args.industry}'")
+
+
+def cmd_notecheck(args):
+    from report.note_check import check_note
+    r = check_note(args.path, borrower_name=args.borrower)
+    if r["error"]:
+        sys.exit(r["error"])
+    print(f"Proposal-note check vs CMA data of: {r['borrower']}")
+    print(f"  Figures found: {r['total']}   traced: {r['traced']}   "
+          f"untraced: {len(r['untraced'])}"
+          + (f"   ({r['trace_rate']:.0%} traced)" if r["trace_rate"] is not None
+             else ""))
+    if r["untraced"]:
+        print("\n  VERIFY WITH THE ANALYST (figure ← context):")
+        for u in r["untraced"][:20]:
+            print(f"  • {u['figure']}  ←  …{u['context'][:100]}…")
+    else:
+        print("  Every figure in the note traces to the CMA data. ✓")
+
+
 def cmd_serve(args):
     import uvicorn
     uvicorn.run("api.main:app", host="127.0.0.1", port=8000,
@@ -215,6 +285,29 @@ def main():
 
     s = sub.add_parser("portfolio", help="whole book at a glance")
     s.set_defaults(fn=cmd_portfolio)
+
+    s = sub.add_parser("benchmark", help="borrower vs the book + industry norms")
+    s.add_argument("-b", "--borrower", default=None)
+    s.set_defaults(fn=cmd_benchmark)
+
+    s = sub.add_parser("norms", help="maintain industry medians")
+    s.add_argument("industry", help='industry name, or --list')
+    s.add_argument("--set", nargs="+", metavar="METRIC=VALUE",
+                   help="e.g. ebitda_margin=0.07 current_ratio=1.25")
+    s.add_argument("--source", default="", help='e.g. "CRISIL Apr 2026"')
+    s.set_defaults(fn=cmd_norms)
+
+    s = sub.add_parser("industry", help="tag a borrower's industry")
+    s.add_argument("name")
+    s.add_argument("industry")
+    s.set_defaults(fn=cmd_industry)
+
+    s = sub.add_parser("notecheck",
+                       help="trace every figure in an analyst's .docx note "
+                            "to the CMA data")
+    s.add_argument("path", help="path to the proposal note .docx")
+    s.add_argument("-b", "--borrower", default=None)
+    s.set_defaults(fn=cmd_notecheck)
 
     s = sub.add_parser("registry", help="registry due-diligence checks")
     s.add_argument("name", help="borrower name")

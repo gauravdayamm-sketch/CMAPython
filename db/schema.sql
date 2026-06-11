@@ -185,6 +185,17 @@ CREATE TABLE IF NOT EXISTS news_cache (
     PRIMARY KEY (borrower_id, link)
 );
 
+-- Industry benchmark norms, maintained by the desk officer from public
+-- rating-agency publications (CRISIL/ICRA sector medians etc.).
+CREATE TABLE IF NOT EXISTS industry_norm (
+    industry   TEXT NOT NULL,
+    metric     TEXT NOT NULL,        -- 'ebitda_margin', 'current_ratio', ...
+    median     REAL NOT NULL,
+    source     TEXT,
+    updated_on DATE,
+    PRIMARY KEY (industry, metric)
+);
+
 -- Public-registry due diligence: one row per borrower per registry.
 -- Most Indian portals are captcha-walled, so checks are recorded manually
 -- (or by future API connectors); staleness drives committee queries.

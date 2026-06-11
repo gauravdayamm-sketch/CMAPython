@@ -129,6 +129,43 @@ figure in the draft is then machine-checked against the source data;
 anything untraceable is listed in the memo footer. Re-run `cma.py memo`
 afterwards to include the narrative in section 8.
 
+### Step 8 — Check the analyst's proposal note
+
+If you receive the analyst's appraisal note as a .docx, trace every
+figure in it back to the CMA data:
+
+```powershell
+.\venv\Scripts\python.exe cma.py notecheck "D:\Work\<note>.docx" -b "WINTAS TEXTILES"
+```
+
+Figures that trace are confirmed; the rest are listed with their
+surrounding sentence as **verification items** — typically facility
+limits and sanction terms (check those against the sanction documents)
+or, occasionally, a number that exists nowhere. Dates, identifiers and
+codes are skipped automatically.
+
+### Step 9 — Benchmark against your own book
+
+Every borrower you ingest becomes a peer. Tag industries once, then:
+
+```powershell
+.\venv\Scripts\python.exe cma.py industry "WINTAS TEXTILES" "Textiles"
+.\venv\Scripts\python.exe cma.py benchmark -b "WINTAS TEXTILES"
+```
+
+The borrower is placed at a percentile among same-industry peers (whole
+book while an industry is thin) on margins, growth, liquidity, leverage
+and DSO. Maintain sector medians from public rating-agency notes for an
+external yardstick — they appear alongside automatically:
+
+```powershell
+.\venv\Scripts\python.exe cma.py norms "Textiles" --set ebitda_margin=0.075 current_ratio=1.25 tol_tnw=2.0 --source "CRISIL Apr 2026"
+```
+
+The comparison sharpens with every proposal you process — and once ten
+borrower-years accumulate, the multivariate anomaly detector
+(IsolationForest) activates on its own.
+
 ### The whole book
 
 ```powershell
@@ -213,6 +250,13 @@ cma.py registry NAME --record REG STATUS [REMARKS]
                                      REG: mca gst ibbi epfo ecourts
                                      STATUS: clear adverse pending
 cma.py committee [-b NAME]           4-agent AI narrative (Ollama)
+cma.py benchmark [-b NAME]           borrower vs the book + industry norms
+cma.py industry NAME INDUSTRY        tag a borrower's industry
+cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
+                                     maintain sector medians
+                                     metrics: ebitda_margin pat_margin
+                                     sales_growth current_ratio tol_tnw dso
+cma.py notecheck PATH [-b NAME]      trace an analyst note's figures to CMA
 cma.py serve                         REST API at 127.0.0.1:8000
 cma.py demo                          synthetic end-to-end demo
 ```

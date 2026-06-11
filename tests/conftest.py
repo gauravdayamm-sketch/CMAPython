@@ -38,12 +38,15 @@ def temp_db(tmp_path, monkeypatch):
     with sqlite3.connect(db_path) as conn:
         conn.executescript(schema)
 
-    from analytics import anomaly, ews, forecast, ohlson, scores, wc_assessment
+    from analytics import (anomaly, benchmark, ews, forecast, ohlson,
+                           scores, wc_assessment)
     from agents import committee
     from data import feeds, news_intel, registry_checks
     from ingest import cma_workbook
-    for mod in (anomaly, ews, forecast, ohlson, scores, wc_assessment,
-                committee, feeds, news_intel, registry_checks, cma_workbook):
+    from report import note_check
+    for mod in (anomaly, benchmark, ews, forecast, ohlson, scores,
+                wc_assessment, committee, feeds, news_intel,
+                registry_checks, cma_workbook, note_check):
         monkeypatch.setattr(mod, "DB", db_path)
 
     return db_path
