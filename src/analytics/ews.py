@@ -45,6 +45,7 @@ class EWSReport:
     exceptions:       list = field(default_factory=list)
     ews_indicators:   list = field(default_factory=list)   # dicts
     red_flag_verdict: str  = ""
+    basis:            str  = "audited"
     rfa_required:     bool = False
     rfa_reason:       str  = ""
     error:            str  = ""
@@ -78,14 +79,29 @@ def _context(borrower_name, db_path):
         return None
     audited = [y for y in years
                if y["statement_type"] == "audited" and not y["is_dual"]]
-    if not audited:
-        return None
+    if audited:
+        latest, prior, basis = (audited[-1],
+                                audited[-2] if len(audited) >= 2 else None,
+                                "audited")
+    else:
+        # New unit: anchor the level-based tests on the current estimate,
+        # else the first projection. Trend tests degrade to N/A (no prior).
+        est = [y for y in years
+               if y["statement_type"] == "estimated" and not y["is_dual"]]
+        proj = [y for y in years if y["statement_type"] == "projected"]
+        pool = est or proj
+        if not pool:
+            return None
+        latest, prior = pool[0], None
+        basis = (f"{pool[0]['statement_type'].upper()} "
+                 f"{pool[0]['fy_label']} — new unit, no audited history")
     ctx = {
         "borrower":   borrower,
         "years":      years,
         "audited":    audited,
-        "latest":     audited[-1],
-        "prior":      audited[-2] if len(audited) >= 2 else None,
+        "latest":     latest,
+        "prior":      prior,
+        "basis":      basis,
         "projected":  [y for y in years if y["statement_type"] == "projected"],
         "thresholds": thresholds,
         "meta":       _setup_meta(borrower["borrower_id"], db_path),
@@ -621,7 +637,8 @@ def run_full_ews(borrower_name=None, manual_triggers=None, db_path=None):
         return EWSReport(borrower_name=borrower_name or "NOT FOUND",
                          error="No CMA data ingested for this borrower")
 
-    report = EWSReport(borrower_name=ctx["borrower"]["name"])
+    report = EWSReport(borrower_name=ctx["borrower"]["name"],
+                       basis=ctx["basis"])
     report.red_flags  = run_red_flags(ctx)
     report.exceptions = run_exception_engine(ctx)
     report.red_flag_verdict = red_flag_verdict(report.red_flags)

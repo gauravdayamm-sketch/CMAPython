@@ -180,8 +180,8 @@ def generate_queries(borrower_name=None, db_path=None):
     queries = []
 
     # 1 ── Projection credibility: the dual column
-    audited = a.latest_audited
-    if audited:
+    audited, basis_label = a.assessment_basis
+    if audited and basis_label == "audited":
         dual = next((y for y in a.years if y["is_dual"]
                      and y["fy_label"] == audited["fy_label"]), None)
         if dual:
@@ -206,10 +206,22 @@ def generate_queries(borrower_name=None, db_path=None):
             queries.append(_q(
                 1, "Limit assessment",
                 f"Proposed FB-WC limit is {_fmt(proposed)} Cr against assessed "
-                f"MPBF (Method II) of {_fmt(mpbf)} Cr on the latest audited year.",
+                f"MPBF (Method II) of {_fmt(mpbf)} Cr on the "
+                f"{basis_label.split(' — ')[0]} year {audited['fy_label']}.",
                 "Justify the excess over MPBF: is it assessed on projected "
                 "financials, and if so, why are those projections reliable "
                 "(see scrutiny findings)? Otherwise restrict the limit."))
+    if basis_label != "audited" and audited:
+        queries.append(_q(
+            1, "New unit",
+            f"No audited financials exist; the entire assessment rests on "
+            f"the borrower's own {basis_label.split(' — ')[0].lower()} "
+            f"figures for {audited['fy_label']}.",
+            "What independent evidence supports these projections — project "
+            "report appraisal, supplier/customer contracts, promoter "
+            "experience in this line, margin benchmarks? What is the DCCO, "
+            "the implementation status, and the promoter contribution "
+            "already brought in?"))
 
     # 3 ── Red flags and exception tests
     ews = run_full_ews(borrower_name, db_path=db)

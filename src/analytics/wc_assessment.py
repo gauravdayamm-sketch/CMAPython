@@ -55,6 +55,22 @@ class WCAssessment:
                 if y["statement_type"] == "audited" and not y["is_dual"]]
         return rows[-1] if rows else None
 
+    @property
+    def assessment_basis(self):
+        """(year, label) the assessment anchors on. Audited actuals when
+        they exist; for new units the current estimate, else the FIRST
+        projected year (the nearest, most credible projection)."""
+        if self.latest_audited:
+            return self.latest_audited, "audited"
+        est = [y for y in self.years
+               if y["statement_type"] == "estimated" and not y["is_dual"]]
+        if est:
+            return est[0], "ESTIMATED — new unit, no audited history"
+        proj = [y for y in self.years if y["statement_type"] == "projected"]
+        if proj:
+            return proj[0], "PROJECTED — new unit, no audited history"
+        return None, ""
+
     def year(self, fy_label, statement_type=None):
         for y in self.years:
             if y["fy_label"] == fy_label and (
@@ -330,11 +346,11 @@ def assess_working_capital(borrower_name=None, db_path=None):
 
 
 def form_v(assessment, fy_label=None):
-    """Canonical CMA Form V presentation rows for one year (default: latest audited)."""
+    """Canonical CMA Form V rows for one year (default: assessment basis)."""
     if fy_label:
         y = assessment.year(fy_label, "audited") or assessment.year(fy_label)
     else:
-        y = assessment.latest_audited
+        y, _ = assessment.assessment_basis
     if not y:
         return []
     m = y["metrics"]

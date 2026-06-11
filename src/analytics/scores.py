@@ -40,6 +40,7 @@ class ScoreResult:
 class EnsembleResult:
     borrower_name: str
     fy_end:        str = ""
+    basis:         str = "audited"
     ohlson:        ScoreResult = None
     altman:        ScoreResult = None
     zmijewski:     ScoreResult = None
@@ -55,6 +56,7 @@ class EnsembleResult:
             }
         return {
             "borrower": self.borrower_name, "fy_end": self.fy_end,
+            "basis": self.basis,
             "ohlson": sr(self.ohlson), "altman": sr(self.altman),
             "zmijewski": sr(self.zmijewski),
             "models_flagging": self.models_flagging,
@@ -112,8 +114,21 @@ def _inputs_from_cma(conn, borrower_id):
           AND s.is_dual = 0
         ORDER BY s.col_index DESC LIMIT 1
     """, (borrower_id,)).fetchone()
+    basis_note = ""
     if not row:
-        return None
+        # New unit: score the nearest estimated/projected year, clearly
+        # labelled — indicative only, these are the borrower's own numbers.
+        row = conn.execute("""
+            SELECT s.stmt_id, s.fy_end, s.statement_type, s.fy_label
+            FROM cma_statement s
+            WHERE s.borrower_id = ? AND s.is_dual = 0
+              AND s.statement_type IN ('estimated', 'projected')
+            ORDER BY s.col_index ASC LIMIT 1
+        """, (borrower_id,)).fetchone()
+        if not row:
+            return None
+        basis_note = (f"scored on {row['statement_type'].upper()} "
+                      f"{row['fy_label']} — new unit, indicative only")
     L = dict(conn.execute(
         "SELECT line_code, value FROM cma_line WHERE stmt_id = ?",
         (row["stmt_id"],)).fetchall())
@@ -139,7 +154,7 @@ def _inputs_from_cma(conn, borrower_id):
         "ni": L["os_pat"], "ni_prev": ni_prev,
         "ffo": L["os_cash_accruals"], "ebit": L["os_opbi"],
         "tnw": L["bs_tnw"], "retained_earnings": re_,
-        "re_note": "",
+        "re_note": "", "basis_note": basis_note,
     }
 
 
@@ -165,6 +180,7 @@ def _inputs_from_financials(conn, borrower_id):
         "retained_earnings": tnw,
         "re_note": ("RE approximated by TNW — reserve breakdown not "
                     "available without CMA ingestion"),
+        "basis_note": "",
     }
 
 
@@ -193,7 +209,8 @@ def run_ensemble(borrower_name=None, db_path=None):
                               error="No usable financial data")
 
     result = EnsembleResult(borrower_name=borrower["name"],
-                            fy_end=inputs["fy_end"])
+                            fy_end=inputs["fy_end"],
+                            basis=inputs.get("basis_note") or "audited")
 
     o = compute_ohlson(
         ta=inputs["ta"], tl=inputs["tl"], ca=inputs["ca"], cl=inputs["cl"],

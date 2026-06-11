@@ -300,9 +300,14 @@ def cma_assessment(borrower_name: Optional[str] = None):
     a = assess_working_capital(borrower_name)
     if a.error:
         raise HTTPException(status_code=404, detail=a.error)
+    basis_year, basis_label = a.assessment_basis
     return {
         "borrower":       a.borrower_name,
         "latest_audited": a.latest_audited["fy_label"] if a.latest_audited else None,
+        "assessment_basis": {
+            "fy_label": basis_year["fy_label"] if basis_year else None,
+            "basis":    basis_label,
+        },
         "form_v":         [{"item": label, "value": value}
                            for label, value in form_v(a)],
         "dscr_avg_gross": a.dscr_avg_gross,

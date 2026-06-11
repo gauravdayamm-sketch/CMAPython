@@ -379,9 +379,12 @@ def run_cma_assessment():
                                 f"  ({len(warnings)} warnings)")
 
         a = assess_working_capital(data.borrower["name"])
+        basis_year, basis_label = a.assessment_basis
         row = 6
         sh.range(f"U{row}").value = (
-            f"FORM V — MPBF  ({a.latest_audited['fy_label']} audited)")
+            f"FORM V — MPBF  ({basis_year['fy_label']} "
+            f"{basis_label.split(' — ')[0]})" if basis_year
+            else "FORM V — no usable year")
         for label, value in form_v(a):
             row += 1
             sh.range(f"U{row}").value = f"  {label:<48} {value:>12,.2f}"

@@ -193,9 +193,19 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
 
     # 1 ── Snapshot
     _heading(doc, "1. Borrower Snapshot & Proposal")
-    latest = a.latest_audited
+    latest, basis_label = a.assessment_basis
+    if basis_label != "audited":
+        warn = doc.add_paragraph()
+        run = warn.add_run(
+            f"NEW UNIT: no audited financials exist. This assessment is "
+            f"anchored on the {basis_label.split(' — ')[0].lower()} figures "
+            f"for FY {latest['fy_label']} — the borrower's own numbers, not "
+            f"actuals. Trend tests, anomaly engines and projection scrutiny "
+            f"need history and are reported as not applicable.")
+        run.bold = True
     snap = [
-        ("Latest audited FY", latest["fy_label"] if latest else "—"),
+        (f"Assessment basis ({basis_label.split(' — ')[0]})",
+         latest["fy_label"] if latest else "—"),
         ("Net sales (₹ Cr)", _fmt(latest["metrics"]["net_sales"]) if latest else "—"),
         ("TNW (₹ Cr)", _fmt(latest["metrics"]["tnw"]) if latest else "—"),
         ("PAT (₹ Cr)", _fmt(latest["metrics"]["pat"]) if latest else "—"),

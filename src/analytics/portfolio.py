@@ -29,7 +29,7 @@ def portfolio_summary(db_path=None):
         a = assess_working_capital(name, db_path=db)
         if a.error:
             continue
-        latest = a.latest_audited
+        latest, basis_label = a.assessment_basis
         m = latest["metrics"] if latest else {}
 
         ews = run_full_ews(name, db_path=db)
@@ -48,6 +48,7 @@ def portfolio_summary(db_path=None):
         book.append({
             "borrower":        name,
             "latest_audited":  latest["fy_label"] if latest else None,
+            "basis":           basis_label.split(" — ")[0].lower(),
             "net_sales":       m.get("net_sales"),
             "current_ratio":   m.get("current_ratio"),
             "tol_tnw":         m.get("tol_tnw"),

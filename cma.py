@@ -68,9 +68,13 @@ def cmd_assess(args):
         sys.exit(a.error)
     name = a.borrower_name
     print(f"═══ {name} ═══")
-    latest = a.latest_audited
+    latest, basis_label = a.assessment_basis
+    if latest and basis_label != "audited":
+        print(f"\n!! NEW UNIT — assessment basis: {basis_label}, "
+              f"FY {latest['fy_label']} (borrower's own figures)")
     if latest:
-        print(f"\nFORM V — MPBF ({latest['fy_label']} audited, ₹ Cr)")
+        print(f"\nFORM V — MPBF ({latest['fy_label']} "
+              f"{basis_label.split(' — ')[0]}, ₹ Cr)")
         for label, value in form_v(a):
             print(f"  {label:<50} {value:>10,.2f}")
         m = latest["metrics"]
@@ -124,13 +128,20 @@ def cmd_portfolio(args):
     print(f"{'Borrower':<38}{'FY':<9}{'Sales':>8}{'CR':>6}{'TOL/TNW':>9}"
           f"{'DSCR':>6}{'Flags':>6}{'Models':>7}{'News':>5}  RFA")
     print("-" * 105)
+    new_units = False
     for r in book:
-        print(f"{r['borrower'][:36]:<38}{r['latest_audited'] or '—':<9}"
+        fy = (r["latest_audited"] or "—") + (
+            "*" if r.get("basis") not in (None, "audited") else "")
+        new_units = new_units or fy.endswith("*")
+        print(f"{r['borrower'][:36]:<38}{fy:<9}"
               f"{r['net_sales'] or 0:>8,.0f}"
               f"{r['current_ratio'] or 0:>6.2f}{r['tol_tnw'] or 0:>9.2f}"
               f"{r['avg_gross_dscr'] or 0:>6.2f}{r['red_flags'] or 0:>6}"
               f"{r['ensemble']:>7}{r['adverse_news']:>5}"
               f"  {'⚠ YES' if r['rfa_required'] else '—'}")
+    if new_units:
+        print("\n* new unit — figures are the borrower's estimates/projections,"
+              " not audited actuals")
 
 
 def cmd_news(args):
