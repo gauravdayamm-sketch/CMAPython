@@ -110,15 +110,24 @@ def run_rolling_z(rows, window=3):
     ratios = _compute_ratios(rows)
 
     for metric_key, label, action in Z_METRICS:
-        series = [v for v in ratios[metric_key] if v is not None]
-        if len(series) < 3:
+        values = ratios[metric_key]
+
+        # The metric must exist for the latest year — otherwise an older
+        # year's value would silently be treated as "latest".
+        if not values or values[-1] is None:
             continue
 
-        latest  = series[-1]
-        prior   = series[:-1]
-        mu      = np.mean(prior)
-        sigma   = np.std(prior, ddof=1)
+        latest = values[-1]
+        prior  = [v for v in values[:-1] if v is not None]
+        if len(prior) < 2:
+            continue
 
+        mu    = np.mean(prior)
+        sigma = np.std(prior, ddof=1)
+
+        # Floor sigma at 1% of the mean level: an unnaturally flat history
+        # (or float noise) would otherwise produce absurd Z values.
+        sigma = max(sigma, 0.01 * abs(mu))
         if sigma == 0:
             continue
 
@@ -190,18 +199,21 @@ def run_beneish(curr, prev):
         c_ffo   = curr["ffo"] or 0
         c_tl    = curr["total_liabilities"] or 0
         c_ca    = curr["current_assets"] or 0
+        c_cl    = curr["current_liabilities"] or 0
         c_sec   = curr["securities"] or 0
         c_ltd   = curr["long_term_debt"] or 0
         p_tl    = prev["total_liabilities"] or 0
         p_ca    = prev["current_assets"] or 0
+        p_cl    = prev["current_liabilities"] or 0
         p_sec   = prev["securities"] or 0
         p_ltd   = prev["long_term_debt"] or 0
 
         # 8 Beneish variables
-        dsri = _safe_div(
-            _safe_div(c_recv, c_sales),
-            _safe_div(p_recv, p_sales)
-        )
+        # Ratios default to 1.0 (neutral, "no change") when the underlying
+        # data is missing, so absent fields don't drag the M-Score.
+        c_dsr = _safe_div(c_recv, c_sales)
+        p_dsr = _safe_div(p_recv, p_sales)
+        dsri  = _safe_div(c_dsr, p_dsr, default=1.0) if p_dsr > 0 else 1.0
 
         c_gm = _safe_div(c_sales - c_cogs, c_sales)
         p_gm = _safe_div(p_sales - p_cogs, p_sales)
@@ -217,17 +229,17 @@ def run_beneish(curr, prev):
         p_dep_rate = _safe_div(p_dep, p_dep + p_ppe)
         depi = _safe_div(p_dep_rate, c_dep_rate) if c_dep_rate > 0 else 1.0
 
-        sgai = _safe_div(
-            _safe_div(c_sga, c_sales),
-            _safe_div(p_sga, p_sales)
-        ) if p_sga > 0 else 1.0
+        c_sga_r = _safe_div(c_sga, c_sales)
+        p_sga_r = _safe_div(p_sga, p_sales)
+        sgai    = _safe_div(c_sga_r, p_sga_r, default=1.0) if p_sga_r > 0 else 1.0
 
         # TATA = (Net Income - FFO) / Total Assets
         tata = _safe_div(c_ni - c_ffo, c_ta)
 
-        c_lev = _safe_div(c_ca + c_ltd, c_ta)
-        p_lev = _safe_div(p_ca + p_ltd, p_ta)
-        lvgi  = _safe_div(c_lev, p_lev) if p_lev > 0 else 1.0
+        # LVGI — leverage = (current liabilities + long-term debt) / total assets
+        c_lev = _safe_div(c_cl + c_ltd, c_ta)
+        p_lev = _safe_div(p_cl + p_ltd, p_ta)
+        lvgi  = _safe_div(c_lev, p_lev, default=1.0) if p_lev > 0 else 1.0
 
         components = {
             "DSRI": round(dsri, 4),

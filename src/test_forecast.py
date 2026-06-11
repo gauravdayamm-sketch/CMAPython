@@ -3,6 +3,10 @@ import sys
 import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+# Windows consoles default to cp1252, which cannot print symbols like ₹
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from analytics.forecast import run_annual_forecast, run_weekly_forecast
 
 print("ANNUAL FORECAST — Acme Manufacturing")

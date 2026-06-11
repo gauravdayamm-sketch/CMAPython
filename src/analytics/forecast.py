@@ -62,23 +62,27 @@ class WeeklyForecastResult:
 
 # ── ETS model fitter ──────────────────────────────────────────────────────────
 
-def _fit_ets(series, horizon, freq="A"):
+def _fit_ets(series, horizon):
     """
     Fit Holt-Winters ETS model and return forecast with intervals.
 
-    series : pd.Series with DatetimeIndex
+    series : pd.Series (any index — the model is fit positionally)
     horizon: number of periods to forecast
-    freq   : 'A' for annual, 'W' for weekly
     """
     from statsmodels.tsa.exponential_smoothing.ets import ETSModel
 
     if len(series) < 4:
         return None, None, "Need at least 4 periods of history"
 
-    # Remove zeros/NaN at the end (unpopulated cells)
+    # Remove zeros/NaN (unpopulated cells)
     series = series.replace(0, np.nan).dropna()
     if len(series) < 4:
         return None, None, "Fewer than 4 non-zero periods"
+
+    # Fit on a plain positional index. Callers derive forecast periods from
+    # the last actual date themselves, and an irregular DatetimeIndex only
+    # makes statsmodels warn and guess at a frequency.
+    series = series.reset_index(drop=True)
 
     try:
         # Try additive trend + additive error (Holt's linear)
@@ -176,7 +180,7 @@ def run_annual_forecast(borrower_name=None, horizon=2):
         values = [float(r[col] or 0) for r in rows]
         series = pd.Series(values, index=dates)
 
-        fit, fc, err = _fit_ets(series, horizon, freq="A")
+        fit, fc, err = _fit_ets(series, horizon)
 
         if err or fc is None:
             result = ForecastResult(
@@ -281,13 +285,13 @@ def run_weekly_forecast(
     outflows  = pd.Series([float(r["outflow"] or 0) for r in rows], index=dates)
 
     # Forecast inflows
-    _, fc_in, err_in = _fit_ets(inflows, horizon, freq="W")
+    _, fc_in, err_in = _fit_ets(inflows, horizon)
     if err_in:
         result.verdict = f"Inflow forecast error: {err_in}"
         return result
 
     # Forecast outflows
-    _, fc_out, err_out = _fit_ets(outflows, horizon, freq="W")
+    _, fc_out, err_out = _fit_ets(outflows, horizon)
     if err_out:
         result.verdict = f"Outflow forecast error: {err_out}"
         return result
@@ -341,6 +345,121 @@ def run_weekly_forecast(
         )
 
     return result
+
+
+# ── Projection scrutiny: borrower's CMA projections vs ETS bands ─────────────
+
+SCRUTINY_METRICS = [
+    ("os_net_sales", "Net Sales"),
+    ("os_ebitda",    "EBITDA"),
+    ("os_pat",       "PAT"),
+]
+
+
+def scrutinize_projections(borrower_name=None, db_path=None):
+    """
+    Test the borrower's own CMA projections against ETS forecasts fitted on
+    their actual history. A projection above the 95% band is AGGRESSIVE
+    (inflates MPBF and DSCR); below the 80% band is CONSERVATIVE.
+
+    Returns {"borrower": ..., "metrics": {label: {...}}, "error": ...}.
+    """
+    from analytics.wc_assessment import _load
+
+    borrower, years, _, _ = _load(borrower_name, db_path or DB)
+    if not borrower or not years:
+        return {"borrower": borrower_name or "NOT FOUND",
+                "metrics": {}, "error": "No CMA data ingested"}
+
+    audited   = [y for y in years
+                 if y["statement_type"] == "audited" and not y["is_dual"]]
+    estimated = [y for y in years
+                 if y["statement_type"] == "estimated" and not y["is_dual"]]
+    projected = [y for y in years if y["statement_type"] == "projected"]
+
+    out = {"borrower": borrower["name"], "metrics": {}, "error": ""}
+    if not projected:
+        out["error"] = "No projected years in the CMA data"
+        return out
+
+    for code, label in SCRUTINY_METRICS:
+        history = [(y["fy_label"], y["lines"].get(code)) for y in audited]
+        note = ""
+        if len(history) < 4 and estimated:
+            # Pad with the current-year estimate to reach the ETS minimum —
+            # weaker evidence, so say so.
+            history += [(y["fy_label"], y["lines"].get(code))
+                        for y in estimated[:1]]
+            note = ("history includes the current-year estimate "
+                    "(fewer than 4 audited years)")
+
+        values = [v for _, v in history if v is not None]
+        entry = {"history_years": len(values), "note": note,
+                 "projections": [], "hist_cagr": None, "proj_cagr": None,
+                 "error": ""}
+
+        if len(values) < 4:
+            entry["error"] = (f"Need 4+ years of history "
+                              f"(have {len(values)})")
+            out["metrics"][label] = entry
+            continue
+
+        # Financial series grow multiplicatively: fit in log space when the
+        # history allows it, so a steady-CAGR past extrapolates at a steady
+        # CAGR (an additive fit would call compounding "aggressive").
+        log_space = all(v > 0 for v in values)
+        fit_vals  = np.log(values) if log_space else values
+        _, fc, err = _fit_ets(pd.Series(fit_vals, dtype=float), len(projected))
+        if err:
+            entry["error"] = err
+            out["metrics"][label] = entry
+            continue
+        if log_space:
+            fc = {k: (np.exp(v) if k in ("mean", "lo_80", "hi_80",
+                                          "lo_95", "hi_95") else v)
+                  for k, v in fc.items()}
+
+        first, last = values[0], values[-1]
+        if first > 0 and last > 0:
+            entry["hist_cagr"] = round(
+                (last / first) ** (1 / (len(values) - 1)) - 1, 4)
+        proj_last = projected[-1]["lines"].get(code)
+        if last > 0 and proj_last and proj_last > 0:
+            entry["proj_cagr"] = round(
+                (proj_last / last) ** (1 / len(projected)) - 1, 4)
+
+        for i, y in enumerate(projected):
+            value = y["lines"].get(code)
+            point = float(fc["mean"][i])
+            # Floor the band width at ±5% (80%) / ±10% (95%) of the point
+            # forecast: an unnaturally clean history otherwise yields
+            # razor-thin bands that flag any deviation at all.
+            lo95 = min(float(fc["lo_95"][i]), point - 0.10 * abs(point))
+            hi95 = max(float(fc["hi_95"][i]), point + 0.10 * abs(point))
+            lo80 = min(float(fc["lo_80"][i]), point - 0.05 * abs(point))
+            hi80 = max(float(fc["hi_80"][i]), point + 0.05 * abs(point))
+            if value is None:
+                verdict = "NO DATA"
+            elif value > hi95:
+                verdict = "AGGRESSIVE"
+            elif value > hi80:
+                verdict = "OPTIMISTIC"
+            elif value < lo95:
+                verdict = "VERY CONSERVATIVE"
+            elif value < lo80:
+                verdict = "CONSERVATIVE"
+            else:
+                verdict = "IN LINE"
+            entry["projections"].append({
+                "fy_label": y["fy_label"], "value": value,
+                "ets_point": round(point, 2),
+                "lo_80": round(lo80, 2), "hi_80": round(hi80, 2),
+                "lo_95": round(lo95, 2), "hi_95": round(hi95, 2),
+                "verdict": verdict,
+            })
+        out["metrics"][label] = entry
+
+    return out
 
 
 # ── Convenience summary dict ──────────────────────────────────────────────────

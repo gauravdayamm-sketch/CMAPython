@@ -1,22 +1,37 @@
 """
 Excel <-> Python bridge.
 Called from Excel VBA via xlwings RunPython.
+
+Output layout on Python_Output sheet:
+  Col A-C  : Ohlson O-Score
+  Col E-G  : Anomaly Detection
+  Col I-K  : Causal Cascade
+  Col M-O  : Forecasting
+  Col Q-S  : RBI Feeds
+  Col A-C  : Narrative (rows 60+)
 """
 import xlwings as xw
 import sys
 import pathlib
 import traceback
 import sqlite3
+import datetime
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
 sys.path.insert(0, str(ROOT / "src"))
 
-from analytics.ohlson import compute_ohlson_from_dict
+from analytics.ohlson  import compute_ohlson_from_dict
 from analytics.anomaly import run_all_anomaly, save_anomaly_to_db
 from analytics.cascade import run_cascade_from_dict, SCENARIOS
 from analytics.forecast import run_forecast_summary
+from agents.committee  import run_committee
+from data.feeds        import (
+    fetch_rbi_updates, save_rbi_to_db, get_rbi_cached
+)
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _safe_float(val):
     try:
@@ -25,50 +40,73 @@ def _safe_float(val):
         return 0.0
 
 
+def _get_output_sheet():
+    """Return the Python_Output sheet."""
+    wb = xw.Book.caller()
+    return wb.sheets["Python_Output"]
+
+
+def _write_header(sh, col, title):
+    """Write a section header in the output sheet."""
+    sh.range(f"{col}1").value  = title
+    sh.range(f"{col}2").value  = f"Last run: {datetime.datetime.now():%d-%b-%Y %H:%M}"
+
+
+def _clear_col(sh, col, rows=50):
+    """Clear a column range before writing (single COM call, not per-cell)."""
+    sh.range(f"{col}1:{col}{rows}").clear_contents()
+
+
+def _write_error_to_sheet(sh, col, e):
+    """Write error details to output sheet."""
+    sh.range(f"{col}1").value = "PYTHON ERROR:"
+    sh.range(f"{col}2").value = str(e)
+    sh.range(f"{col}3").value = traceback.format_exc()
+
+
+# ── Hello World ───────────────────────────────────────────────────────────────
+
 def hello_world():
     """Test - confirms bridge is working."""
     try:
-        wb    = xw.Book.caller()
-        sheet = wb.sheets["0_Setup"]
-        sheet.range("A90").value = "Hello from Python!"
-        sheet.range("A91").value = "xlwings bridge confirmed."
-        sheet.range("A92").value = "Ready for analytics."
+        sh = _get_output_sheet()
+        sh.range("A1").value = "Hello from Python!"
+        sh.range("A2").value = "xlwings bridge confirmed."
+        sh.range("A3").value = f"Time: {datetime.datetime.now():%d-%b-%Y %H:%M:%S}"
     except Exception as e:
         try:
-            xw.Book.caller().sheets["0_Setup"].range("A90").value = str(e)
+            _get_output_sheet().range("A1").value = str(e)
         except Exception:
             pass
 
 
-def run_ohlson():
-    """Reads from SQLite, runs Ohlson, writes results to 0_Setup rows 90+."""
-    wb    = xw.Book.caller()
-    setup = wb.sheets["0_Setup"]
+# ── Module 1: Ohlson (Col A) ──────────────────────────────────────────────────
 
+def run_ohlson():
+    """Runs Ohlson O-Score. Output: Python_Output col A."""
     try:
-        setup.range("A90").value = "run_ohlson: started"
+        sh = _get_output_sheet()
+        _clear_col(sh, "A")
+        _write_header(sh, "A", "OHLSON O-SCORE")
 
         with sqlite3.connect(DB) as conn:
             conn.row_factory = sqlite3.Row
-
             borrower = conn.execute(
                 "SELECT * FROM borrower ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
 
             if not borrower:
-                setup.range("A90").value = "ERROR: No borrower in database"
-                setup.range("A91").value = "Run: python src/setup_test_borrower.py"
+                sh.range("A3").value = "No borrower in database"
                 return
 
             rows = conn.execute(
-                """SELECT * FROM financials
-                   WHERE borrower_id = ?
+                """SELECT * FROM financials WHERE borrower_id=?
                    ORDER BY fy_end DESC LIMIT 2""",
                 (borrower["borrower_id"],)
             ).fetchall()
 
             if not rows:
-                setup.range("A90").value = "ERROR: No financial data in database"
+                sh.range("A3").value = "No financial data in database"
                 return
 
             latest = rows[0]
@@ -85,123 +123,113 @@ def run_ohlson():
             "net_income_prev":     _safe_float(prior["net_income"]) if prior else None,
         }
 
-        result   = compute_ohlson_from_dict(inputs)
+        result = compute_ohlson_from_dict(inputs)
+        if "error" in result:
+            sh.range("A3").value = f"ERROR: {result['error']}"
+            return
         contribs = result["contributions"]
-
         sorted_desc = sorted(contribs.items(), key=lambda x: x[1], reverse=True)
         sorted_asc  = sorted(contribs.items(), key=lambda x: x[1])
 
-        setup.range("A90").value = "OHLSON RESULTS"
-        setup.range("A91").value = f"Borrower:     {borrower['name']}"
-        setup.range("A92").value = f"FY:           {latest['fy_end']}"
-        setup.range("A93").value = f"O-Score:      {result['o_score']}"
-        setup.range("A94").value = f"Prob Default: {result['prob_default']:.1%}"
-        setup.range("A95").value = f"Risk Band:    {result['risk_band']}"
-        setup.range("A96").value = (
-            f"Top Risk:     {sorted_desc[0][0]}  "
-            f"({sorted_desc[0][1]:+.4f})"
-        )
-        setup.range("A97").value = (
-            f"Top Strength: {sorted_asc[0][0]}  "
-            f"({sorted_asc[0][1]:+.4f})"
-        )
-        setup.range("A98").value = (
-            f"Inputs: TA={inputs['total_assets']:,.0f}  "
+        sh.range("A3").value  = f"Borrower:     {borrower['name']}"
+        sh.range("A4").value  = f"FY:           {latest['fy_end']}"
+        sh.range("A5").value  = f"O-Score:      {result['o_score']}"
+        sh.range("A6").value  = f"Prob Default: {result['prob_default']:.1%}"
+        sh.range("A7").value  = f"Risk Band:    {result['risk_band']}"
+        sh.range("A8").value  = f"Top Risk:     {sorted_desc[0][0]} ({sorted_desc[0][1]:+.4f})"
+        sh.range("A9").value  = f"Top Strength: {sorted_asc[0][0]} ({sorted_asc[0][1]:+.4f})"
+        sh.range("A11").value = "Contributions:"
+        for i, (k, v) in enumerate(contribs.items()):
+            sh.range(f"A{12+i}").value = f"  {k:<10} {v:+.4f}"
+
+        sh.range("A23").value = (
+            f"TA={inputs['total_assets']:,.0f}  "
             f"TL={inputs['total_liabilities']:,.0f}  "
-            f"NI={inputs['net_income']:,.0f}  "
-            f"FFO={inputs['ffo']:,.0f}"
-        )
-        setup.range("A99").value = (
-            f"Source: SQLite | FY: {latest['fy_end']} | Last run: OK"
+            f"NI={inputs['net_income']:,.0f}"
         )
 
     except Exception as e:
-        setup.range("A90").value = "PYTHON ERROR:"
-        setup.range("A91").value = str(e)
-        setup.range("A92").value = traceback.format_exc()
+        _write_error_to_sheet(_get_output_sheet(), "A", e)
 
+
+# ── Module 2: Anomaly (Col E) ─────────────────────────────────────────────────
 
 def run_anomaly():
-    """Runs all 3 anomaly engines, writes results to 0_Setup rows 90+."""
-    wb    = xw.Book.caller()
-    setup = wb.sheets["0_Setup"]
-
+    """Runs anomaly detection. Output: Python_Output col E."""
     try:
-        setup.range("A90").value = "Anomaly detection: running..."
+        sh = _get_output_sheet()
+        _clear_col(sh, "E")
+        _write_header(sh, "E", "ANOMALY DETECTION")
 
         report = run_all_anomaly()
         save_anomaly_to_db(report)
 
-        setup.range("A90").value = "ANOMALY DETECTION RESULTS"
-        setup.range("A91").value = f"Borrower:       {report.borrower_name}"
-        setup.range("A92").value = f"FY:             {report.fy_end}"
-        setup.range("A93").value = f"Master Verdict: {report.master_verdict}"
+        sh.range("E3").value = f"Borrower: {report.borrower_name}"
+        sh.range("E4").value = f"FY:       {report.fy_end}"
+        sh.range("E5").value = f"Master:   {report.master_verdict}"
 
+        sh.range("E7").value = "BENEISH M-SCORE"
         if report.beneish:
-            setup.range("A95").value = "BENEISH M-SCORE"
-            setup.range("A96").value = f"M-Score:  {report.beneish.m_score}"
-            setup.range("A97").value = f"Verdict:  {report.beneish.verdict}"
+            sh.range("E8").value  = f"M-Score: {report.beneish.m_score}"
+            sh.range("E9").value  = f"Verdict: {report.beneish.verdict}"
+            sh.range("E11").value = "Components:"
+            for i, (k, v) in enumerate(report.beneish.components.items()):
+                sh.range(f"E{12+i}").value = f"  {k:<6} {v:+.4f}"
 
-        setup.range("A99").value = "ROLLING Z-SCORES"
+        sh.range("E21").value = "ROLLING Z-SCORES"
         if report.z_scores:
             for i, z in enumerate(report.z_scores):
-                setup.range(f"A{100+i}").value = (
+                sh.range(f"E{22+i}").value = (
                     f"{z.metric:<32} "
                     f"Z={z.z_score:+.2f}  {z.verdict}"
                 )
         else:
-            setup.range("A100").value = "Need 4+ years of data"
+            sh.range("E22").value = "Need 4+ years of data"
 
-        iso_row = 100 + len(report.z_scores) + 2
-        setup.range(f"A{iso_row}").value = "ISOLATION FOREST"
-        if report.isoforest:
-            setup.range(f"A{iso_row+1}").value = (
-                f"Score: {report.isoforest.score}  "
-                f"Verdict: {report.isoforest.verdict}"
-            )
-
-        setup.range("A89").value = "Last run: Anomaly OK"
+        iso_row = 22 + max(len(report.z_scores), 1) + 2
+        sh.range(f"E{iso_row}").value   = "ISOLATION FOREST"
+        sh.range(f"E{iso_row+1}").value = (
+            report.isoforest.verdict if report.isoforest
+            else "Not run"
+        )
 
     except Exception as e:
-        setup.range("A90").value = "PYTHON ERROR:"
-        setup.range("A91").value = str(e)
-        setup.range("A92").value = traceback.format_exc()
+        _write_error_to_sheet(_get_output_sheet(), "E", e)
+
+
+# ── Module 3: Cascade (Col I) ─────────────────────────────────────────────────
 
 def run_cascade():
-    """Reads financials from SQLite, runs cascade + MC, writes to 0_Setup rows 90+."""
-    wb    = xw.Book.caller()
-    setup = wb.sheets["0_Setup"]
-
+    """Runs causal cascade. Output: Python_Output col I."""
     try:
-        setup.range("A90").value = "Cascade: running..."
+        sh = _get_output_sheet()
+        _clear_col(sh, "I")
+        _write_header(sh, "I", "CAUSAL CASCADE + MONTE CARLO")
 
         with sqlite3.connect(DB) as conn:
             conn.row_factory = sqlite3.Row
-
             borrower = conn.execute(
                 "SELECT * FROM borrower ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
-
             if not borrower:
-                setup.range("A90").value = "ERROR: No borrower in database"
+                sh.range("I3").value = "No borrower in database"
                 return
-
             latest = conn.execute(
-                """SELECT * FROM financials WHERE borrower_id = ?
+                """SELECT * FROM financials WHERE borrower_id=?
                    ORDER BY fy_end DESC LIMIT 1""",
                 (borrower["borrower_id"],)
             ).fetchone()
 
-            if not latest:
-                setup.range("A90").value = "ERROR: No financial data"
-                return
+        if not latest:
+            sh.range("I3").value = "No financial data"
+            return
 
-        sales    = _safe_float(latest["sales"])
-        ebitda   = _safe_float(latest["ebitda"])
-        dep      = _safe_float(latest["depreciation"])
-        ni       = _safe_float(latest["net_income"])
-        tl       = _safe_float(latest["total_liabilities"])
-        interest = _safe_float(latest["interest_cost"])
+        sales   = _safe_float(latest["sales"])
+        ebitda  = _safe_float(latest["ebitda"])
+        dep     = _safe_float(latest["depreciation"])
+        ni      = _safe_float(latest["net_income"])
+        tl      = _safe_float(latest["total_liabilities"])
+        interest= _safe_float(latest["interest_cost"])
 
         financials = {
             "sales":         sales,
@@ -218,94 +246,233 @@ def run_cascade():
             "cash_accruals": ni + dep,
         }
 
-        # Run all 6 scenarios
-        setup.range("A90").value  = "CAUSAL CASCADE RESULTS"
-        setup.range("A91").value  = f"Borrower: {borrower['name']}"
-        setup.range("A92").value  = f"FY: {latest['fy_end']}"
-        setup.range("A93").value  = "Scenario               Base   P50    P5     P(fail)  Breakeven"
+        sh.range("I3").value  = f"Borrower: {borrower['name']}"
+        sh.range("I4").value  = f"FY:       {latest['fy_end']}"
+        sh.range("I5").value  = "Scenario               Base   P50    P5     P(fail)"
 
         for i, scenario in enumerate(SCENARIOS):
             r = run_cascade_from_dict(financials, scenario_name=scenario)
             if "error" in r:
-                setup.range(f"A{94+i}").value = f"{scenario}: {r['error']}"
+                sh.range(f"I{6+i}").value = f"{scenario}: {r['error']}"
                 continue
-
-            be = r["breakeven_severity"]
-            be_str = f"{be:.0%}" if be is not None else "survives all"
-
-            setup.range(f"A{94+i}").value = (
+            sh.range(f"I{6+i}").value = (
                 f"{scenario:<26} "
                 f"{r['dscr_base']:.2f}x  "
                 f"{r['dscr_p50']:.2f}x  "
                 f"{r['dscr_p5']:.2f}x  "
-                f"{r['prob_failure']:.1%}  "
-                f"{be_str}"
+                f"{r['prob_failure']:.1%}"
             )
 
-        # Detailed Recession
         rec = run_cascade_from_dict(financials, scenario_name="Recession")
-        setup.range("A101").value = "RECESSION DETAIL"
-        setup.range("A102").value = f"Verdict: {rec['verdict']}"
-        setup.range("A103").value = f"P5 DSCR: {rec['dscr_p5']:.2f}x"
-        setup.range("A104").value = f"Median DSCR: {rec['dscr_p50']:.2f}x"
-        setup.range("A105").value = f"Prob failure: {rec['prob_failure']:.1%}"
-        setup.range("A106").value = f"Prob covenant breach: {rec['prob_breach']:.1%}"
-        setup.range("A107").value = f"Breakeven severity: {rec['breakeven_severity']}"
-        setup.range("A89").value  = "Last run: Cascade OK"
+        sh.range("I14").value = "RECESSION DETAIL"
+        if "error" in rec:
+            sh.range("I15").value = f"ERROR: {rec['error']}"
+            return
+        sh.range("I15").value = f"Verdict:  {rec['verdict']}"
+        sh.range("I16").value = f"P5 DSCR:  {rec['dscr_p5']:.2f}x"
+        sh.range("I17").value = f"Median:   {rec['dscr_p50']:.2f}x"
+        sh.range("I18").value = f"P(fail):  {rec['prob_failure']:.1%}"
+        sh.range("I19").value = f"Breakeven:{rec['breakeven_severity']}"
 
     except Exception as e:
-        setup.range("A90").value = "PYTHON ERROR:"
-        setup.range("A91").value = str(e)
-        setup.range("A92").value = traceback.format_exc()
+        _write_error_to_sheet(_get_output_sheet(), "I", e)
+
+
+# ── Module 4: Forecast (Col M) ────────────────────────────────────────────────
 
 def run_forecast():
-    """Runs annual ETS forecast, writes results to 0_Setup rows 90+."""
-    wb    = xw.Book.caller()
-    setup = wb.sheets["0_Setup"]
-
+    """Runs ETS forecast. Output: Python_Output col M."""
     try:
-        setup.range("A90").value = "Forecast: running..."
+        sh = _get_output_sheet()
+        _clear_col(sh, "M")
+        _write_header(sh, "M", "FORECAST (ETS Holt-Winters)")
 
         summary = run_forecast_summary()
 
-        setup.range("A90").value = "FORECAST RESULTS (ETS - Holt-Winters)"
-        setup.range("A91").value = f"Borrower: {summary['borrower']}"
-        setup.range("A92").value = "Metric                         Yr+1        Yr+2       SMAPE    Verdict"
-
+        sh.range("M3").value  = "Metric                         Yr+1        Yr+2     SMAPE"
         for i, entry in enumerate(summary["annual"]):
             if entry["error"]:
-                setup.range(f"A{93+i}").value = (
-                    f"{entry['metric']:<30} ERROR: {entry['error']}"
-                )
+                sh.range(f"M{4+i}").value = f"{entry['metric']:<30} ERROR"
                 continue
-
-            yr1  = f"{entry['yr1']:>10.1f}" if entry["yr1"] else "        —"
-            yr2  = f"{entry['yr2']:>10.1f}" if entry["yr2"] else "        —"
+            yr1   = f"{entry['yr1']:>10.1f}" if entry["yr1"] else "         —"
+            yr2   = f"{entry['yr2']:>10.1f}" if entry["yr2"] else "         —"
             smape = f"{entry['smape']:.1%}" if entry["smape"] else "—"
-
-            setup.range(f"A{93+i}").value = (
-                f"{entry['metric']:<30} "
-                f"{yr1}  {yr2}  "
-                f"{smape:<8} {entry['verdict']}"
+            sh.range(f"M{4+i}").value = (
+                f"{entry['metric']:<30} {yr1}  {yr2}  {smape}"
             )
 
-        # Weekly
-        wk_row = 93 + len(summary["annual"]) + 1
-        setup.range(f"A{wk_row}").value   = "WEEKLY CASH FLOW FORECAST"
-        setup.range(f"A{wk_row+1}").value = f"Verdict: {summary['weekly_verdict']}"
+        wk_row = 4 + len(summary["annual"]) + 2
+        sh.range(f"M{wk_row}").value   = "WEEKLY CASH FLOW"
+        sh.range(f"M{wk_row+1}").value = summary["weekly_verdict"]
 
         if summary["breach_week"]:
-            setup.range(f"A{wk_row+2}").value = (
-                f"First cash-negative week: Wk +{summary['breach_week']}"
+            sh.range(f"M{wk_row+2}").value = (
+                f"First breach: Wk +{summary['breach_week']}"
             )
         if summary["min_cash"] is not None:
-            setup.range(f"A{wk_row+3}").value = (
-                f"Min projected cash: {summary['min_cash']:.2f} Cr"
+            sh.range(f"M{wk_row+3}").value = (
+                f"Min cash: {summary['min_cash']:.2f} Cr"
             )
 
-        setup.range("A89").value = "Last run: Forecast OK"
+    except Exception as e:
+        _write_error_to_sheet(_get_output_sheet(), "M", e)
+
+
+# ── Module 5: Feeds (Col Q) ───────────────────────────────────────────────────
+
+def run_feeds():
+    """Fetches RBI data. Output: Python_Output col Q."""
+    try:
+        sh = _get_output_sheet()
+        _clear_col(sh, "Q")
+        _write_header(sh, "Q", "RBI REGULATORY UPDATES")
+
+        items, err = fetch_rbi_updates("notifications", since_days=30)
+        if not err:
+            save_rbi_to_db(items)
+
+        cached = get_rbi_cached(limit=10)
+
+        sh.range("Q3").value = f"Items fetched: {len(items) if not err else 0}"
+        sh.range("Q4").value = f"Items in cache: {len(cached)}"
+        sh.range("Q5").value = "Latest notifications:"
+
+        for i, item in enumerate(cached):
+            sh.range(f"Q{7+i}").value = (
+                f"{item['published'][:10]}  "
+                f"{item['title'][:75]}"
+            )
 
     except Exception as e:
-        setup.range("A90").value = "PYTHON ERROR:"
-        setup.range("A91").value = str(e)
-        setup.range("A92").value = traceback.format_exc()
+        _write_error_to_sheet(_get_output_sheet(), "Q", e)
+
+
+# ── Module 6: CMA ingestion + WC assessment (Col U) ──────────────────────────
+
+def run_cma_assessment():
+    """
+    Ingests the CMA sheets of the CALLING workbook (live values, unsaved
+    edits included), persists them to SQLite, runs the Form V / DSCR /
+    ratio assessment and projection scrutiny. Output: Python_Output col U.
+    """
+    try:
+        from ingest.cma_workbook import parse_grids, load_grids_xlwings, save_to_db
+        from analytics.wc_assessment import assess_working_capital, form_v
+        from analytics.forecast import scrutinize_projections
+
+        wb = xw.Book.caller()
+        sh = _get_output_sheet()
+        _clear_col(sh, "U", rows=70)
+        _write_header(sh, "U", "CMA INGESTION + WC ASSESSMENT")
+
+        data = parse_grids(load_grids_xlwings(wb), source=wb.fullname)
+        if data.errors():
+            sh.range("U3").value = "INGESTION ERRORS:"
+            for i, msg in enumerate(data.errors()[:10]):
+                sh.range(f"U{4+i}").value = f"  {msg}"
+            return
+        save_to_db(data)
+
+        warnings = [m for lvl, m in data.issues if lvl == "WARNING"]
+        sh.range("U3").value = f"Borrower: {data.borrower['name']}"
+        sh.range("U4").value = (f"Ingested {len(data.years)} year-columns"
+                                f"  ({len(warnings)} warnings)")
+
+        a = assess_working_capital(data.borrower["name"])
+        row = 6
+        sh.range(f"U{row}").value = (
+            f"FORM V — MPBF  ({a.latest_audited['fy_label']} audited)")
+        for label, value in form_v(a):
+            row += 1
+            sh.range(f"U{row}").value = f"  {label:<48} {value:>12,.2f}"
+
+        row += 2
+        sh.range(f"U{row}").value = f"Average Gross DSCR: {a.dscr_avg_gross}x"
+        for y in a.years:
+            m = y["metrics"]
+            if m["gross_dscr"] is None or y["is_dual"]:
+                continue
+            row += 1
+            sh.range(f"U{row}").value = (
+                f"  {y['fy_label']} [{y['statement_type'][:4]}] "
+                f"Gross={m['gross_dscr']:.2f}x  CR={m['current_ratio']}")
+
+        breaches = [v for v in a.verdicts if v["status"] == "BREACH"]
+        row += 2
+        sh.range(f"U{row}").value = f"THRESHOLD BREACHES: {len(breaches)}"
+        for v in breaches[:8]:
+            row += 1
+            sh.range(f"U{row}").value = (
+                f"  {v['fy_label']} {v['metric']}: {v['value']} "
+                f"(req {v['direction']} {v['threshold']})")
+
+        row += 2
+        sh.range(f"U{row}").value = f"RED FLAGS: {len(a.red_flags) or 'none'}"
+        for flag in a.red_flags[:8]:
+            row += 1
+            sh.range(f"U{row}").value = f"  {flag}"
+
+        row += 2
+        sh.range(f"U{row}").value = "PROJECTION SCRUTINY (vs ETS bands)"
+        scr = scrutinize_projections(data.borrower["name"])
+        for metric, entry in scr["metrics"].items():
+            row += 1
+            if entry["error"]:
+                sh.range(f"U{row}").value = f"  {metric}: {entry['error']}"
+                continue
+            verdicts = [p["verdict"] for p in entry["projections"]]
+            worst = ("AGGRESSIVE" if "AGGRESSIVE" in verdicts else
+                     "OPTIMISTIC" if "OPTIMISTIC" in verdicts else "IN LINE")
+            sh.range(f"U{row}").value = (
+                f"  {metric}: {worst}  "
+                f"({', '.join(verdicts)})")
+
+    except Exception as e:
+        _write_error_to_sheet(_get_output_sheet(), "U", e)
+
+
+# ── Module 7: Narrative (Col A, rows 60+) ────────────────────────────────────
+
+def run_narrative():
+    """Runs 4-agent committee. Output: Python_Output col A rows 60+."""
+    try:
+        sh = _get_output_sheet()
+
+        # Clear narrative area only
+        for r in range(58, 120):
+            sh.range(f"A{r}").value = None
+
+        sh.range("A58").value = "CREDIT COMMITTEE NARRATIVE"
+        sh.range("A59").value = f"Started: {datetime.datetime.now():%d-%b-%Y %H:%M}"
+        sh.range("A60").value = "Running 4 agents (60-120 seconds)..."
+
+        result = run_committee()
+
+        if result.error:
+            sh.range("A60").value = f"ERROR: {result.error}"
+            return
+
+        sh.range("A60").value = f"Borrower:   {result.borrower_name}"
+        sh.range("A61").value = f"Verdict:    {result.verdict}"
+        sh.range("A62").value = f"Confidence: {result.confidence}"
+        sh.range("A63").value = f"Key Risk:   {result.key_risk}"
+        sh.range("A65").value = "CREDIT JUSTIFICATION MEMORANDUM"
+
+        paragraphs = result.final_memo.split("\n\n")
+        row = 66
+        for para in paragraphs:
+            if para.strip():
+                sh.range(f"A{row}").value = para.strip()
+                row += 2
+
+        sh.range(f"A{row+1}").value = "AUDIT LOG"
+        for j, entry in enumerate(result.audit_log):
+            status = "OK" if not entry["error"] else f"ERROR: {entry['error']}"
+            sh.range(f"A{row+2+j}").value = (
+                f"{entry['agent']:<12} "
+                f"{entry['model']:<22} "
+                f"{status}"
+            )
+
+    except Exception as e:
+        _write_error_to_sheet(_get_output_sheet(), "A", e)

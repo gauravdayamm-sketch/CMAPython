@@ -1,0 +1,36 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Runtime data — recreate with scripts/init_db.py + src/setup_test_borrower.py
+db/*.sqlite
+db/*.sqlite-journal
+db/*.sqlite-wal
+db/*.sqlite-shm
+logs/
+
+# Secrets / local config
+.env
+
+# Excel lock/temp files
+~$*.xls*
+*.tmp
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# OS noise
+Thumbs.db
+.DS_Store
+
+# Generated demo data
+data/demo_CMA_filled.xlsx
