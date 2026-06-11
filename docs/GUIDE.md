@@ -129,22 +129,7 @@ figure in the draft is then machine-checked against the source data;
 anything untraceable is listed in the memo footer. Re-run `cma.py memo`
 afterwards to include the narrative in section 8.
 
-### Step 8 — Check the analyst's proposal note
-
-If you receive the analyst's appraisal note as a .docx, trace every
-figure in it back to the CMA data:
-
-```powershell
-.\venv\Scripts\python.exe cma.py notecheck "D:\Work\<note>.docx" -b "WINTAS TEXTILES"
-```
-
-Figures that trace are confirmed; the rest are listed with their
-surrounding sentence as **verification items** — typically facility
-limits and sanction terms (check those against the sanction documents)
-or, occasionally, a number that exists nowhere. Dates, identifiers and
-codes are skipped automatically.
-
-### Step 9 — Benchmark against your own book
+### Step 8 — Benchmark against your own book
 
 Every borrower you ingest becomes a peer. Tag industries once, then:
 
@@ -256,7 +241,6 @@ cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
                                      maintain sector medians
                                      metrics: ebitda_margin pat_margin
                                      sales_growth current_ratio tol_tnw dso
-cma.py notecheck PATH [-b NAME]      trace an analyst note's figures to CMA
 cma.py serve                         REST API at 127.0.0.1:8000
 cma.py demo                          synthetic end-to-end demo
 ```

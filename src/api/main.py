@@ -410,29 +410,11 @@ def intel_registry_record(req: RegistryRequest):
     return {"status": "recorded"}
 
 
-class NoteCheckRequest(BaseModel):
-    path: str
-    borrower_name: Optional[str] = None
-
-
 @app.get("/benchmark")
 def benchmark_endpoint(borrower_name: str):
     """Borrower vs the book's peers and industry norms."""
     from analytics.benchmark import benchmark
     r = benchmark(borrower_name)
-    if r["error"]:
-        raise HTTPException(status_code=404, detail=r["error"])
-    return r
-
-
-@app.post("/notecheck")
-def notecheck_endpoint(req: NoteCheckRequest):
-    """Trace every figure in an analyst's .docx note to the CMA data."""
-    import pathlib
-    if not pathlib.Path(req.path).exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
-    from report.note_check import check_note
-    r = check_note(req.path, borrower_name=req.borrower_name)
     if r["error"]:
         raise HTTPException(status_code=404, detail=r["error"])
     return r

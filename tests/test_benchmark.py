@@ -1,11 +1,10 @@
-"""Tests for peer benchmarking, industry norms and the note check."""
+"""Tests for peer benchmarking and industry norms."""
 import sqlite3
 import pytest
 
 from analytics.benchmark import (
     benchmark, set_norms, get_norms, set_industry, METRICS,
 )
-from report.note_check import check_note
 from ingest.demo_fixture import BORROWER
 
 
@@ -77,48 +76,3 @@ def test_norms_appear_in_benchmark(peered):
     assert row["norm_source"] == "ICRA"
 
 
-# ── Note check ────────────────────────────────────────────────────────────────
-
-def _make_note(path, lines):
-    from docx import Document
-    doc = Document()
-    for line in lines:
-        doc.add_paragraph(line)
-    doc.save(path)
-
-
-def test_note_check_traces_real_figures(ingested, tmp_path):
-    data, bid, expected, db = ingested
-    latest = data.year("2024-25", "audited").lines
-    note = tmp_path / "note.docx"
-    _make_note(note, [
-        f"Net sales for FY25 stood at {latest['os_net_sales']:.2f} Cr.",
-        f"TNW is {latest['bs_tnw']:.2f} Cr and current ratio is healthy.",
-        "Proposed limit: 220.00 Cr against existing 180.00 Cr.",
-    ])
-    r = check_note(note, borrower_name=BORROWER, db_path=db)
-    assert r["error"] == ""
-    assert r["untraced"] == []
-    assert r["traced"] == r["total"] > 0
-
-
-def test_note_check_flags_invented_figure(ingested, tmp_path):
-    data, bid, expected, db = ingested
-    note = tmp_path / "note2.docx"
-    _make_note(note, [
-        "The company earned a PAT of 999.77 Cr last year.",   # invented
-        "CIN U28999GJ2020PTC118078 and branch code (60344).",  # id noise
-    ])
-    r = check_note(note, borrower_name=BORROWER, db_path=db)
-    figures = [u["figure"] for u in r["untraced"]]
-    assert "999.77" in figures
-    assert "28999" not in figures        # identifier digits skipped
-    assert "60344" not in figures        # code-like integer skipped
-    assert "PAT of 999.77" in r["untraced"][0]["context"]
-
-
-def test_note_check_no_cma_data(temp_db, tmp_path):
-    note = tmp_path / "note3.docx"
-    _make_note(note, ["Sales of 100.55 Cr."])
-    r = check_note(note, borrower_name="Ghost Co", db_path=temp_db)
-    assert r["error"] != ""

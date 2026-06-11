@@ -235,24 +235,6 @@ def cmd_industry(args):
     print(f"✓ {args.name} → industry '{args.industry}'")
 
 
-def cmd_notecheck(args):
-    from report.note_check import check_note
-    r = check_note(args.path, borrower_name=args.borrower)
-    if r["error"]:
-        sys.exit(r["error"])
-    print(f"Proposal-note check vs CMA data of: {r['borrower']}")
-    print(f"  Figures found: {r['total']}   traced: {r['traced']}   "
-          f"untraced: {len(r['untraced'])}"
-          + (f"   ({r['trace_rate']:.0%} traced)" if r["trace_rate"] is not None
-             else ""))
-    if r["untraced"]:
-        print("\n  VERIFY WITH THE ANALYST (figure ← context):")
-        for u in r["untraced"][:20]:
-            print(f"  • {u['figure']}  ←  …{u['context'][:100]}…")
-    else:
-        print("  Every figure in the note traces to the CMA data. ✓")
-
-
 def cmd_serve(args):
     import uvicorn
     uvicorn.run("api.main:app", host="127.0.0.1", port=8000,
@@ -302,12 +284,6 @@ def main():
     s.add_argument("industry")
     s.set_defaults(fn=cmd_industry)
 
-    s = sub.add_parser("notecheck",
-                       help="trace every figure in an analyst's .docx note "
-                            "to the CMA data")
-    s.add_argument("path", help="path to the proposal note .docx")
-    s.add_argument("-b", "--borrower", default=None)
-    s.set_defaults(fn=cmd_notecheck)
 
     s = sub.add_parser("registry", help="registry due-diligence checks")
     s.add_argument("name", help="borrower name")
