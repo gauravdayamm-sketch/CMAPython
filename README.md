@@ -56,6 +56,16 @@ On top of the ingested data:
   EWS indicators: financial-behavior signals auto-detected, qualitative
   ones accepted as manual triggers, and the RFA rule applied (any Critical
   or 2+ High severity → flag for Red Flagged Account).
+- **Distress score ensemble** (`analytics/scores.py`) — Ohlson O-Score,
+  Altman Z″ (1995 EM) and Zmijewski X side by side with reason codes; no
+  single 1980s US-calibrated model decides an Indian file, cross-model
+  agreement is the signal. Feeds the underwriter agent automatically.
+- **Memo number audit** — after the committee drafts a memo, a
+  deterministic (non-LLM) verifier traces every figure in it back to the
+  source data given to the agents; untraceable numbers are listed in the
+  memo footer for the analyst. The supervisor's verdict JSON is enforced
+  via Ollama's JSON mode, and the EWS findings flow into the forensic
+  agent's brief.
 
 Run it from Excel (`run_cma_assessment` writes to Python_Output col U),
 the API (`POST /cma/ingest`, `GET /cma/assessment`, `GET /cma/projections`),
@@ -111,6 +121,7 @@ Endpoints (see `http://127.0.0.1:8000/docs`):
 | GET    | `/cma/assessment`     | Form V MPBF, DSCR, ratios, red flags      |
 | GET    | `/cma/projections`    | borrower projections vs ETS bands         |
 | POST   | `/cma/ews`            | red flags + exception tests + RBI EWS/RFA |
+| GET    | `/scores`             | Ohlson + Altman Z″ + Zmijewski ensemble   |
 
 **Excel bridge**: open `CMA_v9_python.xlsm` (xlwings add-in required, with the
 interpreter pointed at `venv\Scripts\python.exe`). The VBA buttons call

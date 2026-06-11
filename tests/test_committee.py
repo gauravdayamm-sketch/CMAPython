@@ -19,7 +19,7 @@ class FakeOllama:
         self.supervisor_text = supervisor_text
         self.fail_models = fail_models
 
-    def chat(self, model, messages, options):
+    def chat(self, model, messages, options, format=None):
         self.calls.append(model)
         if model in self.fail_models:
             raise ConnectionError("model unavailable")

@@ -12,6 +12,7 @@ Final memo carries mandatory AI-drafted disclaimer.
 """
 import hashlib
 import pathlib
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Optional
@@ -105,6 +106,7 @@ class CommitteeResult:
     confidence:     str = ""
     key_risk:       str = ""
     audit_log:      list = field(default_factory=list)
+    number_audit:   Optional[dict] = None
     error:          str = ""
 
 
@@ -114,7 +116,7 @@ def _hash(s):
     return hashlib.sha256(s.encode()).hexdigest()[:12]
 
 
-def _call(agent_name, user_content, temperature=0.2):
+def _call(agent_name, user_content, temperature=0.2, force_json=False):
     """Call an Ollama model and return AgentOutput."""
     model      = MODELS[agent_name]
     system     = PROMPTS[agent_name]
@@ -128,6 +130,7 @@ def _call(agent_name, user_content, temperature=0.2):
                 {"role": "user",    "content": user_content},
             ],
             options={"temperature": temperature, "num_ctx": 4096},
+            format="json" if force_json else None,
         )
         return AgentOutput(
             agent=agent_name,
@@ -188,6 +191,9 @@ Rolling Z-Scores:
 IsolationForest: {anomaly_data.get('isoforest_verdict', 'not run')}
 Master Verdict:  {anomaly_data.get('master_verdict', 'not assessed')}
 
+Red Flag / EWS engine:
+{anomaly_data.get('ews_text', 'not run')}
+
 Analyse these results and provide your forensic assessment."""
 
     return _call("forensic", user)
@@ -220,6 +226,7 @@ PROPOSAL: {borrower_data.get('proposal', 'Not specified')}
 
 OHLSON PROBABILITY OF DEFAULT: {borrower_data.get('ohlson_pd', 0):.1%}
 OHLSON RISK BAND: {borrower_data.get('ohlson_band', 'Unknown')}
+SCORE ENSEMBLE: {borrower_data.get('ensemble_text', 'not run')}
 
 FORENSIC ANALYST FINDINGS:
 {forensic_out.output if forensic_out and not forensic_out.error else 'Forensic analysis unavailable'}
@@ -233,8 +240,56 @@ Write the Credit Justification Memorandum."""
 
 
 def _run_supervisor(memo_text):
-    """Supervisor: classifies the verdict as JSON."""
-    return _call("supervisor", memo_text, temperature=0.0)
+    """Supervisor: classifies the verdict as JSON (enforced by Ollama)."""
+    return _call("supervisor", memo_text, temperature=0.0, force_json=True)
+
+
+# ── Deterministic memo number audit ───────────────────────────────────────────
+
+_NUM_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _extract_numbers(text):
+    """All numeric literals in a text, as floats."""
+    out = set()
+    for m in _NUM_RE.finditer(text or ""):
+        try:
+            out.add(float(m.group(0).replace(",", "")))
+        except ValueError:
+            pass
+    return out
+
+
+def verify_memo_numbers(memo, source_texts, rel_tol=0.02):
+    """
+    Hallucination check, no LLM involved: every number the memo cites must
+    trace back to a number in the source data given to the agents (allowing
+    percent/fraction representation and small rounding).
+
+    Returns {"total": n, "unverified": [raw strings]}.
+    """
+    known = set()
+    for t in source_texts:
+        for v in _extract_numbers(t):
+            known.update({v, v * 100, v / 100})    # 0.408 ⇔ 40.8%
+
+    def traceable(n):
+        for v in known:
+            if abs(n - v) <= max(rel_tol * max(abs(v), 1.0), 0.05):
+                return True
+        return False
+
+    total, unverified = 0, []
+    for m in _NUM_RE.finditer(memo or ""):
+        raw = m.group(0)
+        n = float(raw.replace(",", ""))
+        # Skip structure noise: list indices, years, tiny integers
+        if (n < 10 and n == int(n)) or (1900 <= n <= 2100 and n == int(n)):
+            continue
+        total += 1
+        if not traceable(n):
+            unverified.append(raw)
+    return {"total": total, "unverified": unverified}
 
 
 # ── Master runner ─────────────────────────────────────────────────────────────
@@ -306,6 +361,22 @@ def run_committee(
             "master_verdict":  "Partial data — run full anomaly suite",
         }
 
+    # Feed the EWS engine into the forensic agent when CMA data exists
+    if "ews_text" not in anomaly_data:
+        try:
+            from analytics.ews import run_full_ews
+            ews = run_full_ews(borrower["name"])
+            if not ews.error:
+                hits = ews.triggered_red_flags + ews.triggered_exceptions
+                lines = [f"- {f.rule_id} {f.test} = {f.value}" for f in hits]
+                if ews.rfa_required:
+                    lines.append(f"- RFA REQUIRED: {ews.rfa_reason}")
+                anomaly_data["ews_text"] = (
+                    f"{ews.red_flag_verdict}\n" + "\n".join(lines)
+                    if lines else ews.red_flag_verdict)
+        except Exception:
+            pass
+
     if forecast_data is None:
         forecast_data = {
             "annual_text": "Run forecast module to populate annual projections",
@@ -326,6 +397,21 @@ def run_committee(
         "ohlson_pd":  ohlson_pd,
         "ohlson_band": ohlson_band,
     }
+
+    # Multi-model distress ensemble for the underwriter
+    try:
+        from analytics.scores import run_ensemble
+        ens = run_ensemble(borrower["name"])
+        if not ens.error:
+            parts = []
+            for s in (ens.ohlson, ens.altman, ens.zmijewski):
+                if s:
+                    p = f" p={s.prob:.1%}" if s.prob is not None else ""
+                    parts.append(f"{s.model}: {s.score}{p} ({s.zone})")
+            borrower_data["ensemble_text"] = (
+                " | ".join(parts) + f" => {ens.verdict}")
+    except Exception:
+        pass
 
     # ── Run the 4 agents in sequence ──────────────────────────────────────────
     print(f"  [1/4] Forensic Analyst ({MODELS['forensic']})...")
@@ -357,6 +443,14 @@ def run_committee(
         "error": result.underwriter.error,
     })
 
+    # Deterministic hallucination check: every number in the memo must
+    # trace back to the data the agents were given.
+    if result.underwriter and result.underwriter.output:
+        source_texts = [str(anomaly_data), str(forecast_data),
+                        str(dscr_data), str(borrower_data)]
+        result.number_audit = verify_memo_numbers(
+            result.underwriter.output, source_texts)
+
     # Add attribution footer
     if result.underwriter and result.underwriter.output:
         result.final_memo = (
@@ -369,6 +463,14 @@ def run_committee(
             + f"L={result.liquidity.prompt_hash} "
             + f"U={result.underwriter.prompt_hash}"
         )
+        if result.number_audit and result.number_audit["unverified"]:
+            result.final_memo += (
+                "\nNUMBER AUDIT: "
+                f"{len(result.number_audit['unverified'])} figure(s) in this "
+                "memo could not be traced to source data: "
+                + ", ".join(result.number_audit["unverified"][:8])
+                + " — verify before sign-off."
+            )
 
     print(f"  [4/4] Supervisor ({MODELS['supervisor']})...")
     result.supervisor = _run_supervisor(result.final_memo)

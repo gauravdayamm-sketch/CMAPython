@@ -204,14 +204,15 @@ def run_narrative_endpoint(
         try:
             result = run_committee(borrower_name=req.borrower_name)
             JOBS[job_id] = {
-                "status":     "done",
-                "borrower":   result.borrower_name,
-                "verdict":    result.verdict,
-                "confidence": result.confidence,
-                "key_risk":   result.key_risk,
-                "memo":       result.final_memo,
-                "audit_log":  result.audit_log,
-                "error":      result.error,
+                "status":       "done",
+                "borrower":     result.borrower_name,
+                "verdict":      result.verdict,
+                "confidence":   result.confidence,
+                "key_risk":     result.key_risk,
+                "memo":         result.final_memo,
+                "audit_log":    result.audit_log,
+                "number_audit": result.number_audit,
+                "error":        result.error,
             }
         except Exception as e:
             JOBS[job_id] = {
@@ -312,6 +313,16 @@ def cma_projections(borrower_name: Optional[str] = None):
     if result["error"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@app.get("/scores")
+def scores(borrower_name: Optional[str] = None):
+    """Ohlson + Altman Z″ + Zmijewski distress ensemble."""
+    from analytics.scores import run_ensemble
+    result = run_ensemble(borrower_name)
+    if result.error:
+        raise HTTPException(status_code=404, detail=result.error)
+    return result.as_dict()
 
 
 @app.post("/cma/ews")
