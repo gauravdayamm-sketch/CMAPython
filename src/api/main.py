@@ -364,6 +364,52 @@ def cma_memo(req: MemoRequest):
     return {"path": str(path)}
 
 
+# ── Market & registry intelligence ────────────────────────────────────────────
+
+class NewsRequest(BaseModel):
+    borrower_name: str
+    use_llm: bool = True
+
+class RegistryRequest(BaseModel):
+    borrower_name: str
+    registry: str
+    status: str                       # clear | adverse | pending
+    remarks: str = ""
+    reference: str = ""
+
+
+@app.post("/intel/news")
+def intel_news_refresh(req: NewsRequest):
+    """Fetch + classify + cache Google News headlines for a borrower."""
+    from data.news_intel import refresh_borrower_news
+    result = refresh_borrower_news(req.borrower_name, use_llm=req.use_llm)
+    if result["error"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/intel/registry")
+def intel_registry(borrower_name: str):
+    """Registry due-diligence state with portal deep links."""
+    from data.registry_checks import get_checks
+    checks = get_checks(borrower_name)
+    if not checks:
+        raise HTTPException(status_code=404, detail="Borrower not found")
+    return {"borrower": borrower_name, "checks": checks}
+
+
+@app.post("/intel/registry")
+def intel_registry_record(req: RegistryRequest):
+    """Record what a manual registry search found."""
+    from data.registry_checks import record_check
+    try:
+        record_check(req.borrower_name, req.registry, req.status,
+                     remarks=req.remarks, reference=req.reference)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"status": "recorded"}
+
+
 @app.get("/cma/queries")
 def cma_queries(borrower_name: Optional[str] = None):
     """Committee questions for the presenting analyst, generated from

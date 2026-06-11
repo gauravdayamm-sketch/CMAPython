@@ -238,6 +238,23 @@ def generate_queries(borrower_name=None, db_path=None):
                     2, f"EWS #{i['id']}", i["indicator"] + ".",
                     EWS_QUESTIONS[i["id"]]))
 
+    # 3b ── Due-diligence gaps: registries unchecked or stale
+    try:
+        from data.registry_checks import due_diligence_gaps
+        gaps = due_diligence_gaps(a.borrower_name, db_path=db)
+        if gaps:
+            labels = ", ".join(g["label"] for g in gaps)
+            queries.append(_q(
+                2, "Due diligence",
+                f"Public-registry checks pending or older than 90 days: "
+                f"{labels}.",
+                "Confirm these searches were performed before placing the "
+                "proposal, and table the findings: MCA charges (who else has "
+                "lent?), GST filing regularity, IBBI/NCLT proceedings, EPFO "
+                "defaults and pending litigation."))
+    except Exception:
+        pass
+
     # 4 ── Optimistic projections
     scr = scrutinize_projections(borrower_name, db_path=db)
     if not scr.get("error"):

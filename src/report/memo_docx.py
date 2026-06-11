@@ -296,6 +296,37 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     else:
         doc.add_paragraph(f"Not available: {ews.error}")
 
+    # 5b ── Market & registry intelligence
+    try:
+        from data.registry_checks import get_checks
+        from data.news_intel import get_news
+        with sqlite3.connect(db) as conn:
+            bid_row = conn.execute(
+                "SELECT borrower_id FROM borrower WHERE name = ?",
+                (name,)).fetchone()
+        news = get_news(bid_row[0], db_path=db) if bid_row else []
+        adverse = [n for n in news if n["classification"] == "ADVERSE"]
+        doc.add_paragraph()
+        doc.add_paragraph(
+            f"Market intelligence: {len(adverse)} adverse / {len(news)} "
+            f"headlines on record.")
+        for n in adverse[:5]:
+            doc.add_paragraph(
+                f"⚠ {n['title'][:110]} ({n['published'][:10]})",
+                style="List Bullet")
+        checks = get_checks(name, db_path=db)
+        if checks:
+            _table(doc,
+                   [(c["label"], c["status"].upper(),
+                     c["checked_on"] or "—", (c["remarks"] or "")[:60])
+                    for c in checks],
+                   header=("Registry due diligence", "Status",
+                           "Checked on", "Remarks"))
+            _note(doc, "Registries marked UNCHECKED or STALE (>90 days) "
+                       "appear as committee queries in section 7.")
+    except Exception:
+        pass
+
     # 6 ── Projection scrutiny
     _heading(doc, "6. Projection Scrutiny (vs ETS bands)")
     if not scr["error"]:

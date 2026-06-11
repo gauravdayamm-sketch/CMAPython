@@ -168,3 +168,32 @@ CREATE TABLE IF NOT EXISTS cma_setup_meta (
     value       TEXT,
     PRIMARY KEY (borrower_id, key)
 );
+
+-- ── Market & registry intelligence ───────────────────────────────────────────
+
+-- Adverse-media monitoring: news headlines per borrower, classified locally.
+CREATE TABLE IF NOT EXISTS news_cache (
+    borrower_id    INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    link           TEXT NOT NULL,
+    title          TEXT,
+    source         TEXT,
+    published      TEXT,
+    classification TEXT,            -- ADVERSE | NEUTRAL | POSITIVE
+    category       TEXT,            -- fraud / insolvency / regulatory / ...
+    classified_by  TEXT,            -- model name or 'keywords'
+    fetched_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (borrower_id, link)
+);
+
+-- Public-registry due diligence: one row per borrower per registry.
+-- Most Indian portals are captcha-walled, so checks are recorded manually
+-- (or by future API connectors); staleness drives committee queries.
+CREATE TABLE IF NOT EXISTS registry_check (
+    borrower_id INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    registry    TEXT NOT NULL,      -- 'mca' | 'gst' | 'ibbi' | 'epfo' | 'ecourts'
+    checked_on  DATE NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('clear', 'adverse', 'pending')),
+    remarks     TEXT,
+    reference   TEXT,               -- case no. / GSTIN / URL consulted
+    PRIMARY KEY (borrower_id, registry)
+);

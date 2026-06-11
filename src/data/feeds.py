@@ -203,6 +203,17 @@ def daily_refresh():
         saved2 = save_rbi_to_db(items2)
         print(f"  RBI press releases: {len(items2)} items, {saved2} new saved")
 
+    # Adverse-media sweep for every borrower with CMA data
+    print("  Sweeping borrower news...")
+    try:
+        from data.news_intel import sweep_all_borrowers
+        for name, r in sweep_all_borrowers().items():
+            print(f"  {name[:40]}: {r['new']} new, "
+                  f"{r['total_adverse']} adverse on record"
+                  if not r["error"] else f"  {name[:40]}: {r['error']}")
+    except Exception as e:
+        print(f"  News sweep failed: {e}")
+
     # Sample NSE indices as macro indicators
     print("  Fetching NSE market data...")
     for symbol in ["NIFTY 50", "NIFTY BANK"]:

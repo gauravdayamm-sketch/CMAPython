@@ -76,6 +76,14 @@ On top of the ingested data:
   authority should put to the presenting analyst, with the triggering
   figures cited. Deterministic (template-driven), priority-ordered.
   `GET /cma/queries`, plus memo section 7.
+- **Market & registry intelligence** (`data/news_intel.py`,
+  `data/registry_checks.py`) — Google News headlines per borrower,
+  classified locally by Ollama (keyword screen as the floor), cached and
+  swept daily; adverse media auto-triggers EWS #24. Public-registry due
+  diligence (MCA / GST / IBBI / EPFO / e-courts) is recorded with portal
+  deep links — an adverse GST/EPFO finding maps to the Critical
+  statutory-dues EWS (→ RFA), and unchecked or stale registries surface
+  as committee queries. `POST /intel/news`, `GET|POST /intel/registry`.
 
 **Two ways in for borrower data:**
 

@@ -6,9 +6,9 @@ from report.committee_queries import generate_queries
 from ingest.demo_fixture import BORROWER
 
 
-def test_clean_borrower_gets_only_limit_query(ingested):
-    """The demo borrower is clean except its proposed limit (220) exceeds
-    MPBF-II — that must surface as a priority-1 query, and nothing else."""
+def test_clean_borrower_gets_only_structural_queries(ingested):
+    """The demo borrower is financially clean: the only queries are the
+    over-MPBF proposed limit and the unchecked-registry due-diligence gap."""
     data, bid, expected, db = ingested
     queries = generate_queries(BORROWER, db_path=db)
     params = [q["parameter"] for q in queries]
@@ -17,7 +17,7 @@ def test_clean_borrower_gets_only_limit_query(ingested):
     assert limit_q["priority"] == 1
     assert "220" in limit_q["observation"]
     # No breach/red-flag questions on a clean borrower
-    assert all(p in ("Limit assessment",) for p in params), params
+    assert all(p in ("Limit assessment", "Due diligence") for p in params), params
 
 
 def test_estimate_miss_generates_credibility_query(ingested):

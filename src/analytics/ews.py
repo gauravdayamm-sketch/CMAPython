@@ -563,6 +563,31 @@ def run_ews(ctx, manual_triggers=None, db_path=None):
         """, (bid,)).fetchone()[0]
     auto(44, "Statistical anomaly engine flagged", "High", anom > 0, anom)
 
+    # Adverse media on record (workbook #24) — fed by data/news_intel.py
+    try:
+        from data.news_intel import count_adverse
+        n_adverse = count_adverse(bid, db_path=db_path or DB)
+        auto(24, "Negative news in mainstream/business media (12 months)",
+             "Medium", n_adverse > 0, n_adverse)
+    except Exception:
+        pass
+
+    # Adverse public-registry findings — fed by data/registry_checks.py
+    try:
+        from data.registry_checks import adverse_registries
+        for registry, remarks, ews_id in adverse_registries(
+                bid, db_path=db_path or DB):
+            text, severity = EWS_CATALOGUE.get(
+                ews_id, (f"Adverse registry finding ({registry})", "High"))
+            indicators.append({
+                "id": ews_id,
+                "indicator": f"{text} [{registry}: {remarks or 'adverse'}]",
+                "severity": severity, "triggered": True,
+                "source": f"registry:{registry}", "value": None,
+            })
+    except Exception:
+        pass
+
     for num in sorted(manual):
         if num in EWS_CATALOGUE:
             text, severity = EWS_CATALOGUE[num]
