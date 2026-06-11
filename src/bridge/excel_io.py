@@ -431,7 +431,59 @@ def run_cma_assessment():
         _write_error_to_sheet(_get_output_sheet(), "U", e)
 
 
-# ── Module 7: Narrative (Col A, rows 60+) ────────────────────────────────────
+# ── Module 7: EWS / Red Flags (Col W) ─────────────────────────────────────────
+
+def run_ews_flags():
+    """Runs the 32 red flags + 13 exception tests + RBI EWS on the most
+    recently ingested CMA data. Output: Python_Output col W."""
+    try:
+        from analytics.ews import run_full_ews
+
+        sh = _get_output_sheet()
+        _clear_col(sh, "W", rows=70)
+        _write_header(sh, "W", "EWS / RED FLAGS")
+
+        r = run_full_ews()
+        if r.error:
+            sh.range("W3").value = f"ERROR: {r.error}"
+            return
+
+        sh.range("W3").value = f"Borrower: {r.borrower_name}"
+        sh.range("W4").value = f"Verdict:  {r.red_flag_verdict}"
+        sh.range("W5").value = (
+            f"RFA: {'REQUIRED — ' + r.rfa_reason if r.rfa_required else 'not indicated'}")
+
+        row = 7
+        sh.range(f"W{row}").value = (
+            f"RED FLAGS TRIGGERED: {len(r.triggered_red_flags)}/32")
+        for f in r.triggered_red_flags[:15]:
+            row += 1
+            sh.range(f"W{row}").value = (
+                f"  {f.rule_id} [{f.status}] {f.test} = {f.value}")
+
+        row += 2
+        sh.range(f"W{row}").value = (
+            f"EXCEPTION TESTS TRIGGERED: {len(r.triggered_exceptions)}/13")
+        for f in r.triggered_exceptions[:10]:
+            row += 1
+            sh.range(f"W{row}").value = (
+                f"  {f.rule_id} {f.test} = {f.value}")
+            row += 1
+            sh.range(f"W{row}").value = f"     {f.detail[:90]}"
+
+        ews_hits = [i for i in r.ews_indicators if i["triggered"]]
+        row += 2
+        sh.range(f"W{row}").value = f"RBI EWS INDICATORS TRIGGERED: {len(ews_hits)}"
+        for i in ews_hits[:10]:
+            row += 1
+            sh.range(f"W{row}").value = (
+                f"  #{i['id']} [{i['severity']}] {i['indicator'][:70]}")
+
+    except Exception as e:
+        _write_error_to_sheet(_get_output_sheet(), "W", e)
+
+
+# ── Module 8: Narrative (Col A, rows 60+) ────────────────────────────────────
 
 def run_narrative():
     """Runs 4-agent committee. Output: Python_Output col A rows 60+."""

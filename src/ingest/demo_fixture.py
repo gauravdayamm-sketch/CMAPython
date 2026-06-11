@@ -39,9 +39,9 @@ def synth_year_inputs(sales, i):
     L["os_rm_imported"]    = round(sales * 0.05, 2)
     L["os_rm_indigenous"]  = round(sales * 0.55, 2)
     L["os_spares_indigenous"] = round(sales * 0.01, 2)
-    L["os_power_fuel"]     = round(sales * 0.04, 2)
-    L["os_direct_labour"]  = round(sales * 0.06, 2)
-    L["os_other_mfg"]      = round(sales * 0.02, 2)
+    L["os_power_fuel"]     = round(sales * 0.06, 2)
+    L["os_direct_labour"]  = round(sales * 0.09, 2)
+    L["os_other_mfg"]      = round(sales * 0.06, 2)
     L["os_depreciation"]   = 25.0 + 2.0 * i
     L["os_opening_sip"]    = round(sales * 0.010, 2)
     L["os_closing_sip"]    = round(sales * 0.011, 2)
@@ -74,7 +74,7 @@ def synth_year_inputs(sales, i):
     L["bs_equity_capital"]   = 100.0
     L["bs_general_reserve"]  = 50.0
     L["bs_security_premium"] = 10.0
-    L["bs_cash"]             = round(sales * 0.02, 2)
+    L["bs_cash"]             = round(sales * 0.02 + 25.0 * i, 2)   # profits retained as cash
     L["bs_govt_securities"]  = 2.0
     L["bs_fixed_deposits"]   = 5.0
     L["bs_receivables_domestic"] = round(sales * 0.10, 2)
@@ -88,9 +88,9 @@ def synth_year_inputs(sales, i):
     L["bs_adv_tax"]          = round(sales * 0.008, 2)
     L["bs_gst_input"]        = round(sales * 0.005, 2)
     L["bs_other_oca"]        = round(sales * 0.002, 2)
-    L["bs_gross_block"]      = 400.0 + 30.0 * i
+    L["bs_gross_block"]      = 400.0 + 10.0 * i
     L["bs_cwip"]             = 10.0
-    L["bs_acc_depreciation"] = 120.0 + 25.0 * i
+    L["bs_acc_depreciation"] = 120.0 + 20.0 * i
     L["bs_inv_group_cos"]    = 5.0
     L["bs_deposits"]         = 3.0
     L["bs_other_nca"]        = 2.0
@@ -142,10 +142,26 @@ def build_demo_workbook(out_path, template=TEMPLATE, sales_path=None,
     setup["B20"] = 180.0       # existing FB-WC limit
     setup["D20"] = 220.0       # proposed FB-WC limit
 
+    # Build all year columns first, then reconcile the audited chain:
+    # dividends absorb whatever profit the balance sheet does not retain,
+    # so ΔTNW == retained profit and the funds-flow red flags stay clean
+    # on a genuinely healthy borrower.
+    built = [(ycol, synth_year_inputs(sales, ycol.col_index - 1))
+             for ycol, sales in zip(cols, sales_path)]
+
+    prev_audited_plug = None
+    for ycol, L in built:
+        if ycol.statement_type == "audited" and not ycol.is_dual:
+            if prev_audited_plug is not None:
+                tnw_delta = L["bs_pl_surplus"] - prev_audited_plug
+                dividend  = min(max(L["os_pat"] - tnw_delta, 0.0), L["os_pat"])
+                L["os_dividend_paid"] = round(dividend, 2)
+                compute_os_derived(L)
+            prev_audited_plug = L["bs_pl_surplus"]
+
     expected = {}
     sheets = {SHEET_OS: OS_INPUTS, SHEET_BS: BS_INPUTS, SHEET_DSCR: DSCR_INPUTS}
-    for ycol, sales in zip(cols, sales_path):
-        L = synth_year_inputs(sales, ycol.col_index - 1)
+    for ycol, L in built:
         col = FIRST_YEAR_COL + ycol.col_index - 1
         for sheet_name, registry in sheets.items():
             ws = wb[sheet_name]

@@ -109,6 +109,10 @@ class FeedsRequest(BaseModel):
 class CMAIngestRequest(BaseModel):
     path: str
 
+class EWSRequest(BaseModel):
+    borrower_name: Optional[str] = None
+    manual_triggers: list[int] = []
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -308,3 +312,25 @@ def cma_projections(borrower_name: Optional[str] = None):
     if result["error"]:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@app.post("/cma/ews")
+def cma_ews(req: EWSRequest):
+    """32 red flags + 13 exception tests + RBI EWS indicators with RFA rule.
+
+    manual_triggers: catalogue ids of qualitative EWS indicators observed
+    by the desk officer (e.g. 19 = forensic audit qualification).
+    """
+    from analytics.ews import run_full_ews
+    r = run_full_ews(req.borrower_name, manual_triggers=req.manual_triggers)
+    if r.error:
+        raise HTTPException(status_code=404, detail=r.error)
+    return {
+        "borrower":         r.borrower_name,
+        "red_flag_verdict": r.red_flag_verdict,
+        "rfa_required":     r.rfa_required,
+        "rfa_reason":       r.rfa_reason,
+        "red_flags":   [vars(f) | {"triggered": f.triggered} for f in r.red_flags],
+        "exceptions":  [vars(f) | {"triggered": f.triggered} for f in r.exceptions],
+        "ews_indicators": r.ews_indicators,
+    }

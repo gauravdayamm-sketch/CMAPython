@@ -50,6 +50,12 @@ On top of the ingested data:
 - **Projection scrutiny** — the borrower's projected Sales/EBITDA/PAT tested
   against ETS bands fitted on their audited history (log-space fit, so a
   steady-CAGR history is judged fairly).
+- **EWS / Red Flags engine** (`analytics/ews.py`) — the workbook's 32
+  quantitative red flags and 13 deep-diagnostic exception tests, fully
+  recomputed from ingested data, plus the RBI Fraud Risk Master Direction
+  EWS indicators: financial-behavior signals auto-detected, qualitative
+  ones accepted as manual triggers, and the RFA rule applied (any Critical
+  or 2+ High severity → flag for Red Flagged Account).
 
 Run it from Excel (`run_cma_assessment` writes to Python_Output col U),
 the API (`POST /cma/ingest`, `GET /cma/assessment`, `GET /cma/projections`),
@@ -104,6 +110,7 @@ Endpoints (see `http://127.0.0.1:8000/docs`):
 | POST   | `/cma/ingest`         | parse a CMA workbook into SQLite          |
 | GET    | `/cma/assessment`     | Form V MPBF, DSCR, ratios, red flags      |
 | GET    | `/cma/projections`    | borrower projections vs ETS bands         |
+| POST   | `/cma/ews`            | red flags + exception tests + RBI EWS/RFA |
 
 **Excel bridge**: open `CMA_v9_python.xlsm` (xlwings add-in required, with the
 interpreter pointed at `venv\Scripts\python.exe`). The VBA buttons call

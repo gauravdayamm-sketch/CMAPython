@@ -84,6 +84,17 @@ print(f"RED FLAGS: {len(a.red_flags) or 'none'}")
 for f in a.red_flags:
     print(f"  ⚠ {f}")
 
+from analytics.ews import run_full_ews
+
+ews = run_full_ews(data.borrower["name"])
+print()
+print(f"RED FLAG DASHBOARD: {ews.red_flag_verdict}")
+print(f"  Triggered: {len(ews.triggered_red_flags)}/32 red flags, "
+      f"{len(ews.triggered_exceptions)}/13 exception tests")
+for f in ews.triggered_red_flags + ews.triggered_exceptions:
+    print(f"  ⚠ {f.rule_id} {f.test} = {f.value}")
+print(f"  RFA: {'REQUIRED — ' + ews.rfa_reason if ews.rfa_required else 'not indicated'}")
+
 print()
 print("PROJECTION SCRUTINY (borrower projections vs ETS bands)")
 scr = scrutinize_projections(data.borrower["name"])

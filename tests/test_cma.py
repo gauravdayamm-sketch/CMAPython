@@ -9,7 +9,7 @@ import pytest
 from ingest.cma_workbook import (
     build_year_columns, parse_workbook, save_to_db, ingest_workbook,
 )
-from ingest.demo_fixture import build_demo_workbook, BORROWER, SALES_PATH
+from ingest.demo_fixture import BORROWER
 from analytics.wc_assessment import assess_working_capital, form_v
 from analytics.forecast import scrutinize_projections
 
@@ -38,22 +38,7 @@ def test_year_columns_invalid_config_rejected():
         build_year_columns(2010, 2029, 2025)    # > 12 columns
 
 
-# ── Fixture workbook (session-scoped: openpyxl write is slow-ish) ────────────
-
-@pytest.fixture(scope="session")
-def demo_wb(tmp_path_factory):
-    path = tmp_path_factory.mktemp("cma") / "demo_cma.xlsx"
-    expected = build_demo_workbook(path)
-    return path, expected
-
-
-@pytest.fixture
-def ingested(demo_wb, temp_db):
-    path, expected = demo_wb
-    data, bid = ingest_workbook(path, db_path=temp_db)
-    assert not data.errors()
-    return data, bid, expected, temp_db
-
+# demo_wb / ingested fixtures are shared via conftest.py
 
 # ── Parsing ───────────────────────────────────────────────────────────────────
 

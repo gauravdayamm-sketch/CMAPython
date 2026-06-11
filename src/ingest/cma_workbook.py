@@ -148,6 +148,7 @@ class CMAData:
     borrower:   dict = field(default_factory=dict)
     thresholds: dict = field(default_factory=dict)
     proposals:  dict = field(default_factory=dict)
+    setup_meta: dict = field(default_factory=dict)   # project-finance overlay etc.
     years:      list = field(default_factory=list)
     issues:     list = field(default_factory=list)   # (level, message)
     source:     str  = ""
@@ -404,6 +405,13 @@ def parse_grids(grids, source=""):
         if existing is not None or proposed is not None:
             data.proposals[facility] = {"existing": existing, "proposed": proposed}
 
+    # Project-finance overlay (0_Setup section 7) — used by regulatory red flags
+    for key, row in (("project_finance", 80), ("project_phase", 81),
+                     ("project_sector", 82), ("dcco_year", 83)):
+        v = _cell(setup, row, 3)
+        if v is not None and str(v).strip() not in ("", "—"):
+            data.setup_meta[key] = str(v).strip()
+
     # Line items per year column
     for ycol in data.years:
         col = FIRST_YEAR_COL + ycol.col_index - 1
@@ -517,6 +525,7 @@ def save_to_db(data, db_path=None):
         conn.execute("DELETE FROM cma_statement WHERE borrower_id = ?", (bid,))
         conn.execute("DELETE FROM cma_proposal WHERE borrower_id = ?", (bid,))
         conn.execute("DELETE FROM cma_threshold WHERE borrower_id = ?", (bid,))
+        conn.execute("DELETE FROM cma_setup_meta WHERE borrower_id = ?", (bid,))
 
         for y in data.years:
             cur = conn.execute("""
@@ -555,6 +564,11 @@ def save_to_db(data, db_path=None):
         for key, value in data.thresholds.items():
             conn.execute("""
                 INSERT INTO cma_threshold (borrower_id, key, value)
+                VALUES (?, ?, ?)
+            """, (bid, key, value))
+        for key, value in data.setup_meta.items():
+            conn.execute("""
+                INSERT INTO cma_setup_meta (borrower_id, key, value)
                 VALUES (?, ?, ?)
             """, (bid, key, value))
 

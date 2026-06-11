@@ -160,3 +160,11 @@ CREATE TABLE IF NOT EXISTS cma_threshold (
     value       REAL,
     PRIMARY KEY (borrower_id, key)
 );
+
+-- Free-form setup metadata (project-finance overlay, data-source mode, ...)
+CREATE TABLE IF NOT EXISTS cma_setup_meta (
+    borrower_id INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    key         TEXT NOT NULL,                -- 'project_finance', 'project_phase', ...
+    value       TEXT,
+    PRIMARY KEY (borrower_id, key)
+);

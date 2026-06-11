@@ -11,6 +11,25 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(scope="session")
+def demo_wb(tmp_path_factory):
+    """Synthetic CMA workbook built once per session from the real template."""
+    from ingest.demo_fixture import build_demo_workbook
+    path = tmp_path_factory.mktemp("cma") / "demo_cma.xlsx"
+    expected = build_demo_workbook(path)
+    return path, expected
+
+
+@pytest.fixture
+def ingested(demo_wb, temp_db):
+    """Demo workbook parsed + persisted into the temp database."""
+    from ingest.cma_workbook import ingest_workbook
+    path, expected = demo_wb
+    data, bid = ingest_workbook(path, db_path=temp_db)
+    assert not data.errors()
+    return data, bid, expected, temp_db
+
+
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
     """Empty database built from db/schema.sql, patched into every module."""
@@ -19,11 +38,11 @@ def temp_db(tmp_path, monkeypatch):
     with sqlite3.connect(db_path) as conn:
         conn.executescript(schema)
 
-    from analytics import anomaly, forecast, ohlson, wc_assessment
+    from analytics import anomaly, ews, forecast, ohlson, wc_assessment
     from agents import committee
     from data import feeds
     from ingest import cma_workbook
-    for mod in (anomaly, forecast, ohlson, wc_assessment,
+    for mod in (anomaly, ews, forecast, ohlson, wc_assessment,
                 committee, feeds, cma_workbook):
         monkeypatch.setattr(mod, "DB", db_path)
 
