@@ -261,7 +261,7 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     latest_verdicts = [v for v in a.verdicts
                        if latest and v["fy_label"] == latest["fy_label"]]
     _table(doc,
-           [(v["metric"], _fmt(v["value"], "{:.4f}"),
+           [(v["metric"], _fmt(v["value"], "{:.2f}"),
              f"{v['direction']} {v['threshold']}", v["status"])
             for v in latest_verdicts],
            header=("Ratio (latest audited)", "Value", "Threshold", "Status"))
@@ -303,10 +303,11 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
             if entry["error"]:
                 doc.add_paragraph(f"{metric}: {entry['error']}")
                 continue
-            cagr = ""
             if entry["hist_cagr"] is not None and entry["proj_cagr"] is not None:
                 cagr = (f" — historical CAGR {entry['hist_cagr']:.1%}, "
                         f"projected {entry['proj_cagr']:.1%}")
+            else:
+                cagr = " — growth trend not computable (loss years in history)"
             doc.add_paragraph(f"{metric}{cagr}", style="Intense Quote")
             _table(doc,
                    [(pp["fy_label"], _fmt(pp["value"]),
@@ -362,8 +363,8 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     sig = _table(doc, [("", "", "")],
                  header=("Name & Designation", "Signature", "Date"))
     for cell in sig.rows[1].cells:
-        cell.paragraphs[0].paragraph_format.space_before = None
-        cell.text = "\n\n"
+        cell.add_paragraph()
+        cell.add_paragraph()
 
     # Annexure ── plain-language glossary
     _heading(doc, "Annexure A — Glossary for Committee Members")

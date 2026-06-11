@@ -33,40 +33,40 @@ def _fmt(v, pat="{:,.2f}"):
 # {v} = flag value. Priority: 1 = put to the analyst first.
 
 RULE_QUESTIONS = {
-    "RF1":  (2, "Profitability", "PAT of {v} in the latest audited year.",
+    "RF1":  (2, "Profitability", "PAT of {v:.2f} Cr in the latest audited year.",
              "Is the loss one-off or structural? Provide the turnaround plan "
              "with quarterly milestones, and promoter support letter if relied upon."),
     "RF3":  (2, "Sales authenticity", "Sales grew {v:.0%} year on year.",
              "Has turnover been cross-verified with GSTR-1/3B and Form 26AS? "
              "Table the reconciliation and the top-5 customer concentration."),
-    "RF4":  (3, "Sales decline", "Sales fell {v:.0%} against the prior year.",
+    "RF4":  (3, "Sales decline", "Sales growth of {v:.0%} breached the acceptable floor.",
              "What caused the decline, and why do the projections assume reversal? "
              "Is the working capital limit sized on declining or projected turnover?"),
-    "RF5":  (2, "Liquidity", "Current ratio at {v} against the sanction benchmark.",
+    "RF5":  (2, "Liquidity", "Current ratio at {v:.2f} against the sanction benchmark.",
              "What corrects the liquidity position, and by when? Confirm no current "
              "liabilities are being rolled over to dress the ratio at year-end."),
-    "RF6":  (1, "Liquidity", "Net working capital is negative ({v}).",
+    "RF6":  (1, "Liquidity", "Net working capital is negative ({v:.2f} Cr).",
              "Short-term funds are financing long-term uses. What long-term "
              "infusion (equity / subordinated USL) restores positive NWC?"),
     "RF7":  (2, "NWC erosion", "NWC eroded {v:.0%} versus the prior year.",
              "Where did the working capital go — losses, capex, or withdrawals? "
              "Provide the funds-flow statement for the year."),
-    "RF8":  (2, "Leverage", "TOL/TNW at {v} exceeds the cap.",
+    "RF8":  (2, "Leverage", "TOL/TNW at {v:.2f} exceeds the cap.",
              "What equity or subordinated infusion is committed, with dates? "
              "Are unsecured loans documented as quasi-equity with non-withdrawal undertakings?"),
-    "RF9":  (1, "Solvency", "Net worth is negative or nil ({v}).",
+    "RF9":  (1, "Solvency", "Net worth is negative or nil ({v:.2f} Cr).",
              "Why is fresh exposure proposed to a borrower with no equity cushion? "
              "What is the recapitalisation plan and promoter contribution?"),
-    "RF10": (2, "Leverage", "Term debt at {v}x EBITDA.",
+    "RF10": (2, "Leverage", "Term debt at {v:.1f}x EBITDA.",
              "How does the borrower deleverage to the policy multiple? Stress the "
              "repayment schedule at EBITDA 20% lower and present the result."),
-    "RF11": (2, "Coverage", "Interest cover at {v}.",
+    "RF11": (2, "Coverage", "Interest cover at {v:.2f}.",
              "At this coverage, what absorbs a rate reset or a margin dip? "
              "Has interest been serviced on time through the last 12 months?"),
-    "RF12": (1, "Debt service", "Gross DSCR falls to {v}x in at least one year.",
+    "RF12": (1, "Debt service", "Gross DSCR falls to {v:.2f}x in at least one year.",
              "Identify the breach year and the source of debt service that year. "
              "Why is restructuring of the repayment schedule not warranted?"),
-    "RF13": (2, "Debt service", "Average gross DSCR at {v}x is below benchmark.",
+    "RF13": (2, "Debt service", "Average gross DSCR at {v:.2f}x is below benchmark.",
              "Justify sanction below the DSCR floor: what structural mitigants — "
              "DSRA, escrow, sponsor undertaking — are built into the terms?"),
     "RF15": (3, "Receivables", "DSO stretched {v:.0%} year on year.",
@@ -78,7 +78,7 @@ RULE_QUESTIONS = {
     "RF18": (1, "Diversion", "Capex of recent years exceeds long-term funds raised (ratio {v}).",
              "Working capital appears to have funded fixed assets. Produce the "
              "end-use certificates and the fund-flow for the capex period."),
-    "RF19": (1, "Capital withdrawal", "TNW moved {v} Cr against retained profit.",
+    "RF19": (1, "Capital withdrawal", "TNW moved {v:.2f} Cr against retained profit.",
              "Reconcile net worth movement with retained earnings. Who withdrew "
              "capital, under what authorisation, while bank debt was outstanding?"),
     "RF20": (2, "Unsecured loans", "Unsecured loans moved {v:.0%}.",
@@ -111,7 +111,7 @@ RULE_QUESTIONS = {
     "RF29": (3, "Asset age", "Net block is {v:.0%} of gross block.",
              "The asset base is heavily depreciated. What replacement capex is "
              "needed to sustain projected output, and how is it funded?"),
-    "RF30": (2, "Security cover", "FACR at {v}.",
+    "RF30": (2, "Security cover", "FACR at {v:.2f}.",
              "Asset cover for term debt is below threshold. What collateral tops "
              "up the shortfall, and at what valuation date?"),
     "EX1":  (1, "Receivable spike", "Receivables grew {v:.0%} while sales lagged.",
@@ -120,7 +120,7 @@ RULE_QUESTIONS = {
     "EX2":  (2, "Inventory build", "Inventory grew {v:.0%}, far ahead of sales.",
              "Is stock slow-moving, obsolete, or inflated for drawing power? When "
              "was the last stock audit, and what did it find?"),
-    "EX3":  (1, "Earnings quality", "PAT positive but NWC severely negative ({v}).",
+    "EX3":  (1, "Earnings quality", "PAT positive but NWC severely negative ({v:.2f} Cr).",
              "Profits are not converting to cash. Present the PAT-to-cash-flow "
              "bridge and debtor/creditor reconciliation."),
     "EX4":  (3, "EBITDA quality", "EBITDA up {v:.0%} on falling sales.",
@@ -144,10 +144,10 @@ RULE_QUESTIONS = {
     "EX10": (1, "Projection realism", "Projected CAGR {v:.0%} is more than double history.",
              "What contracted order book, capacity addition or new customer "
              "justifies this? Re-present MPBF and DSCR at historical growth."),
-    "EX11": (2, "Evergreening", "Short-term borrowings rose {v} as term debt fell.",
+    "EX11": (2, "Evergreening", "Short-term borrowings rose {v:.2f} Cr as term debt fell.",
              "Are WC lines repaying term obligations? Trace TL repayment sources "
              "through the account statements."),
-    "EX12": (2, "Repayment structure", "TL interest at {v}x of principal repaid.",
+    "EX12": (2, "Repayment structure", "TL interest at {v:.2f}x of principal repaid.",
              "The loan is interest-heavy — is principal actually amortising, or "
              "being refinanced? Table the amortisation schedule against payments."),
     "EX13": (2, "USL dependency", "Unsecured loans at {v:.0%} of net worth.",
