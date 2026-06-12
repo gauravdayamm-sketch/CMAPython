@@ -241,6 +241,31 @@ cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
                                      maintain sector medians
                                      metrics: ebitda_margin pat_margin
                                      sales_growth current_ratio tol_tnw dso
+cma.py manual QUESTION...            ask the loan manual (local AI, cited)
+cma.py manual --find QUESTION...     show raw manual passages instead
+cma.py manual --index FILE.md        (re)index the manual markdown
 cma.py serve                         REST API at 127.0.0.1:8000
 cma.py demo                          synthetic end-to-end demo
 ```
+
+## 7. The loan manual
+
+Index the bank's Manual on Loans & Advances once (markdown export):
+
+```powershell
+.\cma manual --index "D:\DL\loan-manual-pdf.md"
+```
+
+Then ask it questions in plain language — answered by the local model
+strictly from the manual's own text, with chapter citations, fully
+offline:
+
+```powershell
+.\cma manual under second method of lending how much margin must the borrower bring
+.\cma manual --find drawing power stock statement   # raw passages, no AI
+```
+
+If the extracts don't cover the question, it says so rather than
+guessing. Add `--refs` to see the source passages under the answer, or
+`-k 8` to retrieve more. The manual's text lives only in your local
+database — it is never committed to the code repository.

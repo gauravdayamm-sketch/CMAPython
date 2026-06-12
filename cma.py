@@ -246,6 +246,35 @@ def cmd_industry(args):
     print(f"✓ {args.name} → industry '{args.industry}'")
 
 
+def cmd_manual(args):
+    from data.loan_manual import (index_manual, search_manual, ask_manual,
+                                  manual_indexed)
+    if args.index:
+        n = index_manual(args.index)
+        print(f"✓ manual indexed: {n} passages")
+        return
+    if manual_indexed() == 0:
+        sys.exit("Manual not indexed yet. Run:\n"
+                 "  cma manual --index \"D:\\path\\to\\loan-manual.md\"")
+    query = " ".join(args.query or [])
+    if not query:
+        sys.exit("Give a question, e.g.:  cma manual what is MPBF method 2")
+    if args.find:
+        for p in search_manual(query, k=args.k):
+            print(f"\n── [{p['part']} {p['chapter']}] " + "─" * 30)
+            print(p["content"][:600])
+    else:
+        r = ask_manual(query, k=args.k)
+        if r["error"]:
+            print(f"({r['error']})")
+        if r["answer"]:
+            print(r["answer"])
+        if r["passages"] and (args.refs or r["error"]):
+            print("\nSOURCES:")
+            for p in r["passages"]:
+                print(f"  [{p['part']} {p['chapter']}] {p['content'][:110]}…")
+
+
 def cmd_serve(args):
     import uvicorn
     uvicorn.run("api.main:app", host="127.0.0.1", port=8000,
@@ -301,6 +330,18 @@ def main():
     s.add_argument("--record", nargs="+", metavar="ARG",
                    help="REGISTRY STATUS [REMARKS]  e.g. gst adverse \"3B gaps\"")
     s.set_defaults(fn=cmd_registry)
+
+    s = sub.add_parser("manual",
+                       help="search/ask the bank loan manual (local RAG)")
+    s.add_argument("query", nargs="*", help="your question")
+    s.add_argument("--index", metavar="FILE",
+                   help="(re)index the manual markdown file")
+    s.add_argument("--find", action="store_true",
+                   help="show raw passages instead of an AI answer")
+    s.add_argument("--refs", action="store_true",
+                   help="also list source passages under the answer")
+    s.add_argument("-k", type=int, default=4, help="passages to retrieve")
+    s.set_defaults(fn=cmd_manual)
 
     s = sub.add_parser("serve", help="run the REST API")
     s.set_defaults(fn=cmd_serve)
