@@ -162,3 +162,137 @@ def run_probe_check(borrower_name, entity_id, force=False):
         reference=entity_id,
     )
     return summary, ""
+
+
+# ── Probe42 downloaded-report (PDF) importer ─────────────────────────────────
+# No API key needed — the officer downloads the report from the portal and
+# points the tool at it. Parsed against the real Probe42 report layout.
+
+def _pdf_text(path):
+    from pypdf import PdfReader
+    reader = PdfReader(path)
+    return "\n".join(p.extract_text() or "" for p in reader.pages)
+
+
+def _flat(text):
+    return " ".join(text.split())
+
+
+def _negative(text, *phrases):
+    """True when the report states the (good-news) negative is present."""
+    low = text.lower()
+    return any(p.lower() in low for p in phrases)
+
+
+def parse_report_pdf(path):
+    """Extract the credit-relevant facts from a Probe42 company report PDF."""
+    return parse_report_text(_pdf_text(path))
+
+
+def parse_report_text(raw):
+    """Parse already-extracted report text (testable without a PDF)."""
+    t = _flat(raw)
+
+    def grab(pattern, group=1, flags=0):
+        m = re.search(pattern, t, flags)
+        return m.group(group).strip() if m else None
+
+    cin = grab(r"CIN\s+([ULul]\d{5}[A-Za-z]{2}\d{4}[A-Za-z]{3}\d{6})")
+    name = grab(r"Probe42\.in\s+([A-Z][A-Z0-9 &().,'-]+?)\s+Printed at")
+    status = grab(r"Company Status\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+"
+                  r"(?:Date of Last AGM|LEI|About)")
+    incorporated = grab(r"Date of Incorporation\s+(\d{1,2} \w+, \d{4})")
+    paid_up = grab(r"Paid Up Capital\s+Rs\.\s+([\d.]+)\s+Crore")
+    sum_charges = grab(r"Sum of Charges\s+Rs\.\s+([\d.]+)\s+Crore")
+    pan = grab(r"PAN\s+([A-Z]{5}\d{4}[A-Z])")
+
+    # Open charges: holder + amount pairs in the Open Charges Sequence block.
+    # Anchor on the table header ("Holder Name ... Property Type") so the
+    # table-of-contents reference is skipped.
+    charges = []
+    block = re.search(
+        r"Open Charges Sequence\s+Sl\. No\..*?Property Type(?:\s+No\. of"
+        r" Holders)?(.*?)(?:Satisfied Charges|Open Charges Latest Events|"
+        r"Peer Comparison|Auditors)", t)
+    if block:
+        for m in re.finditer(
+                r"(?:Creation|Modification)\s+\d{1,2} \w+, \d{4}\s+"
+                r"\d{1,2} \w+, \d{4}\s+([A-Z][A-Za-z0-9 &.,'()-]+?)\s+"
+                r"([\d]+\.[\d]+)\s+(?:Immovable|Movable|Book|Floating|Others)",
+                block.group(1)):
+            charges.append({"holder": m.group(1).strip(),
+                            "amount": float(m.group(2))})
+
+    # Auditor qualifications (adverse if any "Yes")
+    aud = re.search(r"Whether Auditors'? Report has been Qualified.*?"
+                    r"Comments Given By(.*?)(?:Comments under|Page )", t)
+    auditor_qualified = bool(aud and re.search(r"\b\d{4}\s+Yes\b", aud.group(1)))
+
+    legal_against = not _negative(
+        t, "There are no Cases Filed against this corporate")
+    legal_dispute = not _negative(
+        t, "there are no legal cases of financial dispute")
+    bifr   = not _negative(t, "no BIFR Cases")
+    cdr    = not _negative(t, "no CDR History")
+    suit   = not _negative(t, "does not appear to have any Suit Filed Cases")
+    removed = not _negative(t, "name was never removed under section 248")
+    msme_delay = not _negative(
+        t, "does not have any filings related to supplier")
+
+    holders = sorted({c["holder"] for c in charges})
+    adverse_reasons = []
+    if status and status.lower() not in ("active", "active compliant"):
+        adverse_reasons.append(f"company status = {status}")
+    if auditor_qualified:
+        adverse_reasons.append("auditor report qualified/adverse")
+    if legal_against:
+        adverse_reasons.append("cases filed against the corporate")
+    if legal_dispute:
+        adverse_reasons.append("legal cases of financial dispute on record")
+    if bifr:
+        adverse_reasons.append("BIFR history")
+    if cdr:
+        adverse_reasons.append("CDR history")
+    if suit:
+        adverse_reasons.append("suit-filed cases with bureaus")
+    if removed:
+        adverse_reasons.append("name removed u/s 248(5)")
+    if msme_delay:
+        adverse_reasons.append("MSME supplier payment delays filed")
+
+    other_lenders = [h for h in holders if "STATE BANK OF INDIA" not in h.upper()]
+    remarks_bits = [f"status={status}"]
+    if holders:
+        remarks_bits.append(f"open charges: {', '.join(holders[:6])}")
+    if other_lenders:
+        remarks_bits.append(f"OTHER LENDERS: {', '.join(other_lenders[:6])}")
+    if adverse_reasons:
+        remarks_bits.append("ADVERSE: " + "; ".join(adverse_reasons))
+
+    return {
+        "name": name, "cin": cin, "pan": pan, "status": status,
+        "incorporated": incorporated, "paid_up_capital": paid_up,
+        "sum_of_charges": sum_charges,
+        "open_charges": charges, "n_open_charges": len(charges),
+        "charge_holders": holders, "other_lenders": other_lenders,
+        "auditor_qualified": auditor_qualified,
+        "cases_against": legal_against, "financial_dispute": legal_dispute,
+        "bifr": bifr, "cdr": cdr, "suit_filed": suit, "name_removed": removed,
+        "msme_delays": msme_delay,
+        "adverse": bool(adverse_reasons),
+        "adverse_reasons": adverse_reasons,
+        "remarks": _flat("; ".join(remarks_bits))[:400],
+    }
+
+
+def import_report(borrower_name, pdf_path):
+    """Parse a downloaded Probe42 report and record the MCA registry check."""
+    from data.registry_checks import record_check
+    summary = parse_report_pdf(pdf_path)
+    record_check(
+        borrower_name, "mca",
+        "adverse" if summary["adverse"] else "clear",
+        remarks=f"[probe42 report] {summary['remarks']}",
+        reference=summary.get("cin") or pathlib.Path(pdf_path).stem,
+    )
+    return summary

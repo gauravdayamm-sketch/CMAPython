@@ -104,6 +104,22 @@ the *Critical* statutory-dues EWS indicator — which flips the **RFA
 (Red-Flagged Account)** condition on the next assessment. Registries left
 unchecked (or older than 90 days) appear in the memo as a committee query.
 
+**Probe42 reports (MCA, automated).** If you download a company report
+from Probe42, the tool reads it directly — no manual typing for the MCA
+leg:
+
+```powershell
+.\cma probe "D:\DL\U28999GJ2020PTC118078.pdf" -b "ARROWIN METALTECH (INDIA) PRIVATE LIMITED"
+```
+
+It extracts company status, open charges **with holder names** (so you
+see who else has lent — charges held by lenders other than SBI are
+flagged), auditor qualifications, legal cases, BIFR/CDR/suit-filed/
+name-removal compliance, and records the MCA check automatically. An
+adverse status, a qualified auditor report, or cases on record mark the
+check `adverse` → into EWS and the committee queries. (Download the
+report yourself from the Probe42 portal; the tool only reads the file.)
+
 ### Step 6 — News screen
 
 ```powershell
@@ -234,6 +250,8 @@ cma.py registry NAME                 show due-diligence state + links
 cma.py registry NAME --record REG STATUS [REMARKS]
                                      REG: mca gst ibbi epfo ecourts
                                      STATUS: clear adverse pending
+cma.py probe REPORT.pdf -b NAME      import a downloaded Probe42 report
+                                     (auto-records the MCA check)
 cma.py committee [-b NAME]           4-agent AI narrative (Ollama)
 cma.py benchmark [-b NAME]           borrower vs the book + industry norms
 cma.py industry NAME INDUSTRY        tag a borrower's industry

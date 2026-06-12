@@ -257,6 +257,37 @@ def cmd_probe(args):
 
 def _cmd_probe_inner(args, search_entity, run_probe_check, CIN_RE, LLPIN_RE):
     ident = args.id_or_name.strip()
+
+    # Downloaded report PDF — no API key needed
+    if ident.lower().endswith(".pdf"):
+        import pathlib as _pl
+        from data.probe42 import import_report
+        if not _pl.Path(ident).exists():
+            sys.exit(f"File not found: {ident}")
+        if not args.borrower:
+            sys.exit("Give the borrower to record against: "
+                     "cma probe report.pdf -b \"NAME\"")
+        s = import_report(args.borrower, ident)
+        print(f"✓ MCA check recorded for {args.borrower} "
+              f"({'ADVERSE' if s['adverse'] else 'clear'})  [from report]")
+        print(f"  {s['name']}  |  status: {s['status']}  |  "
+              f"incorporated: {s['incorporated']}  |  paid-up: "
+              f"Rs.{s['paid_up_capital']} Cr")
+        print(f"  open charges: {s['n_open_charges']}  "
+              f"(holders: {', '.join(s['charge_holders']) or 'none'})")
+        if s["other_lenders"]:
+            print(f"  ⚠ OTHER LENDERS hold charges: "
+                  f"{', '.join(s['other_lenders'])}")
+        compliance = [k for k, v in (
+            ("auditor qualified", s["auditor_qualified"]),
+            ("cases against", s["cases_against"]),
+            ("financial dispute", s["financial_dispute"]),
+            ("BIFR", s["bifr"]), ("CDR", s["cdr"]),
+            ("suit filed", s["suit_filed"]), ("name removed", s["name_removed"]),
+            ("MSME delays", s["msme_delays"])) if v]
+        print(f"  compliance flags: {', '.join(compliance) or 'none — clean'}")
+        return
+
     is_id = bool(CIN_RE.match(ident) or LLPIN_RE.match(ident.replace("-", "")))
     if not is_id:
         hits, err = search_entity(ident)
