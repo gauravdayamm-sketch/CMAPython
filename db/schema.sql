@@ -196,6 +196,13 @@ CREATE TABLE IF NOT EXISTS industry_norm (
     PRIMARY KEY (industry, metric)
 );
 
+-- Probe42 API responses, cached to conserve the per-call quota.
+CREATE TABLE IF NOT EXISTS probe_cache (
+    entity_id  TEXT PRIMARY KEY,      -- CIN / LLPIN
+    payload    TEXT NOT NULL,         -- raw JSON
+    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Public-registry due diligence: one row per borrower per registry.
 -- Most Indian portals are captcha-walled, so checks are recorded manually
 -- (or by future API connectors); staleness drives committee queries.

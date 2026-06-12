@@ -246,6 +246,45 @@ def cmd_industry(args):
     print(f"✓ {args.name} → industry '{args.industry}'")
 
 
+def cmd_probe(args):
+    from data.probe42 import search_entity, run_probe_check, CIN_RE, LLPIN_RE
+    try:
+        return _cmd_probe_inner(args, search_entity, run_probe_check,
+                                CIN_RE, LLPIN_RE)
+    except RuntimeError as e:
+        sys.exit(str(e))
+
+
+def _cmd_probe_inner(args, search_entity, run_probe_check, CIN_RE, LLPIN_RE):
+    ident = args.id_or_name.strip()
+    is_id = bool(CIN_RE.match(ident) or LLPIN_RE.match(ident.replace("-", "")))
+    if not is_id:
+        hits, err = search_entity(ident)
+        if err:
+            sys.exit(f"Probe42 search failed: {err}")
+        if not hits:
+            sys.exit("No entities matched that name on Probe42.")
+        print("Candidates (re-run with the CIN/LLPIN):")
+        for h in hits:
+            print(f"  {h['id']:<24} {h['status'] or '':<12} {h['name']}")
+        return
+    if not args.borrower:
+        sys.exit("Give the borrower to record against: "
+                 "cma probe <CIN> -b \"NAME\"")
+    summary, err = run_probe_check(args.borrower, ident, force=args.force)
+    if err:
+        sys.exit(f"Probe42 fetch failed: {err}")
+    print(f"✓ MCA check recorded for {args.borrower} "
+          f"({'ADVERSE' if summary['adverse'] else 'clear'})")
+    print(f"  {summary['name']}  |  status: {summary['status']}  |  "
+          f"incorporated: {summary['incorporated']}")
+    print(f"  open charges: {summary['n_open_charges']}")
+    for c in summary["open_charges"][:8]:
+        print(f"    • {c['holder']}  {c['amount']}  ({c['date']})")
+    if summary["n_legal_cases"]:
+        print(f"  legal cases on record: {summary['n_legal_cases']}")
+
+
 def cmd_manual(args):
     from data.loan_manual import (index_manual, search_manual, ask_manual,
                                   manual_indexed)
@@ -330,6 +369,16 @@ def main():
     s.add_argument("--record", nargs="+", metavar="ARG",
                    help="REGISTRY STATUS [REMARKS]  e.g. gst adverse \"3B gaps\"")
     s.set_defaults(fn=cmd_registry)
+
+    s = sub.add_parser("probe",
+                       help="Probe42: search entities / record MCA check")
+    s.add_argument("id_or_name",
+                   help="company name to search, or CIN/LLPIN to fetch")
+    s.add_argument("-b", "--borrower", default=None,
+                   help="borrower to record the check against")
+    s.add_argument("--force", action="store_true",
+                   help="bypass the 30-day cache (consumes API quota)")
+    s.set_defaults(fn=cmd_probe)
 
     s = sub.add_parser("manual",
                        help="search/ask the bank loan manual (local RAG)")
