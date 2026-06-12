@@ -403,6 +403,9 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
             p.add_run(f"Q{i} [P{q['priority']}] {q['parameter']}: ").bold = True
             p.add_run(q["observation"])
             doc.add_paragraph(q["question"], style="Intense Quote")
+            if q.get("manual_ref"):
+                _note(doc, f"Loan Manual [{q['manual_ref']['chapter']}]: "
+                           f"“{q['manual_ref']['extract']}”")
     else:
         doc.add_paragraph("No adverse findings — no committee queries generated.")
 

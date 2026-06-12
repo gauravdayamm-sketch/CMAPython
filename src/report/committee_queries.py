@@ -20,9 +20,82 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
 
 
-def _q(priority, parameter, observation, question):
+def _q(priority, parameter, observation, question, rule_id=None):
     return {"priority": priority, "parameter": parameter,
-            "observation": observation, "question": question}
+            "observation": observation, "question": question,
+            "rule_id": rule_id, "manual_ref": None}
+
+
+# Search phrase + a gate word the passage must contain, per rule/parameter.
+# Citations are retrieved from the indexed loan manual (deterministic FTS,
+# no LLM) and attached beneath the question in the memo.
+MANUAL_GROUNDING = {
+    "RF3":  ("verification of sales turnover sales register", "sales"),
+    "RF5":  ("benchmark current ratio working capital assessment", "current ratio"),
+    "RF6":  ("net working capital long term sources margin", "working capital"),
+    "RF7":  ("net working capital long term sources margin", "working capital"),
+    "RF8":  ("TOL TNW gearing benchmark net worth", "tnw"),
+    "RF11": ("interest coverage ratio benchmark", "interest"),
+    "RF12": ("debt service coverage ratio benchmark term loan", "coverage"),
+    "RF13": ("debt service coverage ratio benchmark term loan", "coverage"),
+    "RF14": ("inventory holding level norms assessment", "inventory"),
+    "RF15": ("receivables holding period debtors norms", "receivab"),
+    "RF18": ("diversion of funds end use monitoring", "diversion"),
+    "RF19": ("withdrawal of funds capital net worth", "withdraw"),
+    "RF20": ("unsecured loans quasi equity subordination promoters", "unsecured"),
+    "RF21": ("corporate guarantee exposure norms", "guarantee"),
+    "RF22": ("exposure group companies investments", "group"),
+    "RF23": ("advances to group companies directors", "group"),
+    "RF24": ("margin bank finance current assets second method", "margin"),
+    "RF25": ("second method of lending margin current assets", "margin"),
+    "RF26": ("receivables older than six months drawing power", "receivab"),
+    "RF30": ("security margin asset coverage term loan", "security"),
+    "EX1":  ("verification debtors receivables ageing", "receivab"),
+    "EX8":  ("unsecured loans quasi equity subordination", "unsecured"),
+    "EX10": ("projections assumptions validation acceptance", "project"),
+    "EX11": ("rollover evergreening repayment term loan", "term loan"),
+    "EX13": ("unsecured loans quasi equity subordination", "unsecured"),
+    "Limit assessment":   ("maximum permissible bank finance assessment "
+                           "working capital method", "bank finance"),
+    "New unit":           ("appraisal of new projects promoter contribution "
+                           "project report", "project"),
+    "Estimate credibility": ("validation of estimates projections "
+                             "reasonableness", "projection"),
+    "Due diligence":      ("pre-sanction survey due diligence opinion "
+                           "reports", "due diligence"),
+    "RFA / fraud risk":   ("early warning signals red flagged account "
+                           "fraud", "fraud"),
+}
+
+
+def _attach_manual_refs(queries, db_path):
+    """Cite the manual under each query where a grounded passage exists."""
+    try:
+        from data.loan_manual import search_manual, manual_indexed
+        if manual_indexed(db_path=db_path) == 0:
+            return
+    except Exception:
+        return
+    cache = {}
+    for q in queries:
+        key = q.get("rule_id") or q["parameter"]
+        if key not in MANUAL_GROUNDING:
+            key = "EX10" if q["parameter"].startswith("Projection") else None
+        if key is None:
+            continue
+        if key not in cache:
+            phrase, gate = MANUAL_GROUNDING[key]
+            hits = search_manual(phrase, k=2, db_path=db_path)
+            ref = None
+            for h in hits:
+                if gate.lower() in h["content"].lower():
+                    extract = h["content"][:240]
+                    extract = extract[:extract.rfind(" ")] + " …"
+                    ref = {"chapter": f"{h['part']} {h['chapter']}".strip(),
+                           "extract": extract}
+                    break
+            cache[key] = ref
+        q["manual_ref"] = cache[key]
 
 
 def _fmt(v, pat="{:,.2f}"):
@@ -243,7 +316,8 @@ def generate_queries(borrower_name=None, db_path=None):
             except (ValueError, TypeError):
                 import re
                 observation = re.sub(r"\{v[^}]*\}", str(f.value), obs_tpl)
-            queries.append(_q(priority, parameter, observation, question))
+            queries.append(_q(priority, parameter, observation, question,
+                              rule_id=f.rule_id))
         for i in ews.ews_indicators:
             if i["triggered"] and i["id"] in EWS_QUESTIONS:
                 queries.append(_q(
@@ -288,5 +362,6 @@ def generate_queries(borrower_name=None, db_path=None):
                 f"trend — orders in hand, capacity commissioned, price escalation? "
                 f"Re-present DSCR and MPBF at the ETS mid-point as a sensitivity."))
 
+    _attach_manual_refs(queries, db)
     queries.sort(key=lambda q: q["priority"])
     return queries
