@@ -259,6 +259,9 @@ cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
                                      maintain sector medians
                                      metrics: ebitda_margin pat_margin
                                      sales_growth current_ratio tol_tnw dso
+cma.py probe REPORT.pdf -b NAME      import a Probe42 company report (MCA check)
+cma.py filing AOC4.pdf -b NAME       tie out filed financials vs the CMA
+cma.py filing AUDIT.pdf -b NAME      read a scanned audit report (opinion only)
 cma.py manual QUESTION...            ask the loan manual (local AI, cited)
 cma.py manual --find QUESTION...     show raw manual passages instead
 cma.py manual --index FILE.md        (re)index the manual markdown
@@ -266,7 +269,42 @@ cma.py serve                         REST API at 127.0.0.1:8000
 cma.py demo                          synthetic end-to-end demo
 ```
 
-## 7. The loan manual
+## 7. MCA filings from Probe42 (tie-out & audit opinion)
+
+Probe42 lets you download a company's actual MCA filings. Two are worth
+running through the tool:
+
+**Form AOC-4** (the financials as filed with MCA — a clean digital PDF):
+
+```powershell
+.\cma filing "D:\DL\Form AOC-4.pdf" -b "ARROWIN METALTECH (INDIA) PRIVATE LIMITED"
+```
+
+This *ties out* the filed revenue, PBT, PAT, net worth and receivables
+against the CMA's audited column. A material mismatch on a core figure is
+flagged as EWS #18 — **concealment of material facts** — which flips the
+RFA condition. If everything matches (as it should for an honest file),
+you get a clean confirmation you can cite in the memo.
+
+**The audited annual report** (usually a scanned PDF). OCR reads prose
+reliably but mangles digits, so the tool reads it for the **auditor's
+opinion only** — never figures:
+
+```powershell
+.\cma filing "D:\DL\Annual Report Scanned.pdf" -b "ARROWIN METALTECH (INDIA) PRIVATE LIMITED"
+```
+
+It reports whether the opinion looks unmodified / qualified / adverse and
+gives verification prompts. A clear qualified or adverse opinion feeds
+EWS #38; statutory-dues and going-concern remain prompts for you to
+confirm against the signed report. **Treat scanned-report output as
+prompts, not findings** — the figures and fine print must be read by eye.
+
+(If you have a Probe42 *API key* rather than just login, `cma probe <CIN>
+-b NAME` pulls MCA master data, charges and directors directly. With only
+a downloaded company report, `cma probe <report>.pdf -b NAME` imports it.)
+
+## 8. The loan manual
 
 Index the bank's Manual on Loans & Advances once (markdown export):
 

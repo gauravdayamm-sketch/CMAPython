@@ -196,6 +196,20 @@ CREATE TABLE IF NOT EXISTS industry_norm (
     PRIMARY KEY (industry, metric)
 );
 
+-- Findings from MCA filings (AOC-4 tie-out, audit-report narrative).
+-- Read by the EWS engine: concealment -> #18 (Critical), auditor
+-- qualification -> #38 (High).
+CREATE TABLE IF NOT EXISTS filing_finding (
+    borrower_id INTEGER NOT NULL REFERENCES borrower(borrower_id),
+    kind        TEXT NOT NULL,        -- 'tie_out' | 'auditor_opinion'
+    ews_id      INTEGER,
+    severity    TEXT,                 -- Critical | High | (blank = informational)
+    detail      TEXT,
+    source_file TEXT,
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (borrower_id, kind)
+);
+
 -- Probe42 API responses, cached to conserve the per-call quota.
 CREATE TABLE IF NOT EXISTS probe_cache (
     entity_id  TEXT PRIMARY KEY,      -- CIN / LLPIN

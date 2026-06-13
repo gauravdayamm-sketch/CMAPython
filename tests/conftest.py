@@ -41,11 +41,11 @@ def temp_db(tmp_path, monkeypatch):
     from analytics import (anomaly, benchmark, ews, forecast, ohlson,
                            scores, wc_assessment)
     from agents import committee
-    from data import feeds, news_intel, registry_checks
+    from data import feeds, news_intel, registry_checks, mca_filings
     from ingest import cma_workbook
     for mod in (anomaly, benchmark, ews, forecast, ohlson, scores,
                 wc_assessment, committee, feeds, news_intel,
-                registry_checks, cma_workbook):
+                registry_checks, mca_filings, cma_workbook):
         monkeypatch.setattr(mod, "DB", db_path)
 
     return db_path

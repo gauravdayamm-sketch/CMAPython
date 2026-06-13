@@ -604,6 +604,21 @@ def run_ews(ctx, manual_triggers=None, db_path=None):
     except Exception:
         pass
 
+    # MCA-filing findings — AOC-4 tie-out / audit-report opinion
+    try:
+        from data.mca_filings import filing_findings
+        for f in filing_findings(bid, db_path=db_path or DB):
+            text, severity = EWS_CATALOGUE.get(
+                f["ews_id"], (f["detail"], f["severity"] or "High"))
+            indicators.append({
+                "id": f["ews_id"],
+                "indicator": f"{text} [{f['detail']}]",
+                "severity": f["severity"] or severity, "triggered": True,
+                "source": f"filing:{f['kind']}", "value": None,
+            })
+    except Exception:
+        pass
+
     for num in sorted(manual):
         if num in EWS_CATALOGUE:
             text, severity = EWS_CATALOGUE[num]

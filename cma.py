@@ -316,6 +316,40 @@ def _cmd_probe_inner(args, search_entity, run_probe_check, CIN_RE, LLPIN_RE):
         print(f"  legal cases on record: {summary['n_legal_cases']}")
 
 
+def cmd_filing(args):
+    from data.mca_filings import import_filing
+    if not args.borrower:
+        sys.exit("Give the borrower: cma filing <pdf> -b \"NAME\"")
+    try:
+        r = import_filing(args.path, args.borrower)
+    except ValueError as e:
+        sys.exit(str(e))
+
+    if r["kind"] == "aoc4":
+        if r.get("error"):
+            sys.exit(r["error"])
+        print(f"AOC-4 tie-out vs CMA audited {r['fy']} — {args.borrower}")
+        print(f"  {'Item':<28}{'CMA':>10}{'Filed':>10}{'Diff':>9}  Status")
+        for row in r["rows"]:
+            print(f"  {row['item']:<28}{row['cma']:>10.2f}{row['filed']:>10.2f}"
+                  f"{row['diff']:>+9.2f}  {row['status'].upper()}")
+        if r.get("breaches"):
+            print(f"\n  ⚠ MATERIAL MISMATCH — {r.get('recorded','')}")
+            for b in r["breaches"]:
+                print(f"    • {b}")
+        else:
+            print("\n  ✓ Filed financials tie out to the CMA within tolerance.")
+    else:
+        print(f"Audit report (scanned, OCR) — {args.borrower}")
+        print(f"  Auditor opinion: {r['opinion']}")
+        print("  Verification prompts:")
+        for f in r["flags"]:
+            print(f"    • {f}")
+        if r.get("recorded"):
+            print(f"  recorded: {r['recorded']}")
+        print(f"\n  NOTE: {r['caveat']}")
+
+
 def cmd_manual(args):
     from data.loan_manual import (index_manual, search_manual, ask_manual,
                                   manual_indexed)
@@ -410,6 +444,12 @@ def main():
     s.add_argument("--force", action="store_true",
                    help="bypass the 30-day cache (consumes API quota)")
     s.set_defaults(fn=cmd_probe)
+
+    s = sub.add_parser("filing",
+                       help="tie out an AOC-4 / read a scanned audit report")
+    s.add_argument("path", help="path to the AOC-4 or audit-report PDF")
+    s.add_argument("-b", "--borrower", default=None)
+    s.set_defaults(fn=cmd_filing)
 
     s = sub.add_parser("manual",
                        help="search/ask the bank loan manual (local RAG)")
