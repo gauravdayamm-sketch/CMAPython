@@ -41,6 +41,34 @@ ollama pull llama3.1:8b
 
 ---
 
+## 1A. The one-click way (recommended)
+
+For a complete memo in one step, use the **`workspace`** folders and the
+**`RUN_CMA.bat`** launcher:
+
+```
+workspace\
+   cma\          ← drop this borrower's LLMS exports (or a .xlsx)
+   probe42\      ← drop the Probe42 report / Form AOC-4 / audit report PDFs
+   notes\        ← drop the proposal note .docx   (optional; local-only)
+   loan_manual\  ← put the loan manual here once   (indexed, then left alone)
+   output\       ← the finished memo appears here
+```
+
+1. Drop one borrower's files into `cma\` and `probe42\` (and `notes\` if
+   permitted). Each folder has a README explaining what it accepts.
+2. **Double-click `RUN_CMA.bat`** in the main folder.
+3. Watch the eight steps run in the window — CMA ingest, MCA filings,
+   note check, assessment, AI committee, memo. The memo lands in
+   `output\` and the window stays open so you can read the progress.
+
+Process one borrower at a time; clear `cma\` and `probe42\` before the
+next. Equivalent command line: `.\cma autorun` (add `--no-committee` to
+skip the AI narrative and run in ~30s without Ollama).
+
+The sections below describe the same steps run individually, for when you
+want to do just one piece.
+
 ## 2. The daily workflow: from proposal to question sheet
 
 ### Step 1 — Export the borrower from LLMS
@@ -259,6 +287,7 @@ cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
                                      maintain sector medians
                                      metrics: ebitda_margin pat_margin
                                      sales_growth current_ratio tol_tnw dso
+cma.py autorun [--no-committee]      watched folders -> credit memo (one shot)
 cma.py probe REPORT.pdf -b NAME      import a Probe42 company report (MCA check)
 cma.py filing AOC4.pdf -b NAME       tie out filed financials vs the CMA
 cma.py filing AUDIT.pdf -b NAME      read a scanned audit report (opinion only)

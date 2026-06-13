@@ -38,3 +38,9 @@ data/*.docx
 
 # Release artifacts
 dist/
+
+# Workspace — borrower data drops; keep the folder structure + READMEs only
+workspace/**
+!workspace/
+!workspace/*/
+!workspace/**/README.txt

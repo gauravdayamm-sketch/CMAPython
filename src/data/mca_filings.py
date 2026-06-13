@@ -234,17 +234,31 @@ def analyse_report_text(text):
 
 # ── Persistence + EWS feed ────────────────────────────────────────────────────
 
+def _bid(conn, borrower_name):
+    row = conn.execute("SELECT borrower_id FROM borrower WHERE name=?",
+                       (borrower_name,)).fetchone()
+    if not row:
+        raise ValueError(f"Borrower not found: {borrower_name}")
+    return row[0]
+
+
+def _clear(borrower_name, kind, db_path):
+    """Retract any prior finding of this kind — so a corrected re-import
+    (e.g. a clean run after an earlier false positive) wipes the stale row."""
+    with sqlite3.connect(db_path or DB) as conn:
+        conn.execute("DELETE FROM filing_finding WHERE kind=? AND borrower_id="
+                     "(SELECT borrower_id FROM borrower WHERE name=?)",
+                     (kind, borrower_name))
+
+
 def _record(borrower_name, kind, ews_id, severity, detail, source, db_path):
     with sqlite3.connect(db_path or DB) as conn:
-        bid = conn.execute("SELECT borrower_id FROM borrower WHERE name=?",
-                           (borrower_name,)).fetchone()
-        if not bid:
-            raise ValueError(f"Borrower not found: {borrower_name}")
+        bid = _bid(conn, borrower_name)
         conn.execute("""
             INSERT OR REPLACE INTO filing_finding
             (borrower_id, kind, ews_id, severity, detail, source_file, recorded_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (bid[0], kind, ews_id, severity, detail, source,
+        """, (bid, kind, ews_id, severity, detail, source,
               datetime.datetime.now().isoformat()))
 
 
@@ -255,6 +269,7 @@ def import_filing(path, borrower_name, db_path=None):
     is_aoc4 = len(text) > 600 and bool(re.search(r"Form\s*No\.?\s*AOC-4", text[:600]))
 
     if is_aoc4:
+        _clear(borrower_name, "tie_out", db_path)   # retract any prior tie-out
         filing = parse_aoc4_text(text)
         result = tie_out_aoc4(borrower_name, filing, db_path=db_path)
         result["kind"] = "aoc4"
@@ -269,6 +284,7 @@ def import_filing(path, borrower_name, db_path=None):
     # Scanned → narrative. Only an unambiguous adverse/qualified OPINION is
     # confident enough off OCR to feed EWS; statutory-dues / going-concern
     # stay verification prompts (OCR + boilerplate make them unreliable).
+    _clear(borrower_name, "auditor_opinion", db_path)  # retract any prior opinion
     rep = analyse_audit_report(path)
     rep["kind"] = "audit_report"
     if rep["auto_findings"]:

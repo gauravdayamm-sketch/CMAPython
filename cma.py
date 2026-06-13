@@ -316,6 +316,12 @@ def _cmd_probe_inner(args, search_entity, run_probe_check, CIN_RE, LLPIN_RE):
         print(f"  legal cases on record: {summary['n_legal_cases']}")
 
 
+def cmd_autorun(args):
+    from pipeline.autorun import run_pipeline
+    run_pipeline(workspace=args.workspace, borrower=args.borrower,
+                 with_committee=not args.no_committee)
+
+
 def cmd_filing(args):
     from data.mca_filings import import_filing
     if not args.borrower:
@@ -444,6 +450,16 @@ def main():
     s.add_argument("--force", action="store_true",
                    help="bypass the 30-day cache (consumes API quota)")
     s.set_defaults(fn=cmd_probe)
+
+    s = sub.add_parser("autorun",
+                       help="watched folders → credit memo, end to end")
+    s.add_argument("--workspace", default=None,
+                   help="workspace folder (default: .\\workspace)")
+    s.add_argument("-b", "--borrower", default=None,
+                   help="override the borrower name (default: from CMA data)")
+    s.add_argument("--no-committee", action="store_true",
+                   help="skip the AI narrative (faster; no Ollama needed)")
+    s.set_defaults(fn=cmd_autorun)
 
     s = sub.add_parser("filing",
                        help="tie out an AOC-4 / read a scanned audit report")
