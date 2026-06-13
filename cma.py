@@ -316,6 +316,18 @@ def _cmd_probe_inner(args, search_entity, run_probe_check, CIN_RE, LLPIN_RE):
         print(f"  legal cases on record: {summary['n_legal_cases']}")
 
 
+def cmd_backup(args):
+    from pipeline.backup import backup_db, default_dest
+    try:
+        out, pruned = backup_db(dest=args.to)
+    except FileNotFoundError as e:
+        sys.exit(str(e))
+    kb = out.stat().st_size / 1024
+    print(f"✓ Backup written: {out}  ({kb:,.0f} KB)")
+    if pruned:
+        print(f"  pruned {len(pruned)} old backup(s), keeping the latest 14")
+
+
 def cmd_autorun(args):
     from pipeline.autorun import run_pipeline
     run_pipeline(workspace=args.workspace, borrower=args.borrower,
@@ -450,6 +462,12 @@ def main():
     s.add_argument("--force", action="store_true",
                    help="bypass the 30-day cache (consumes API quota)")
     s.set_defaults(fn=cmd_probe)
+
+    s = sub.add_parser("backup",
+                       help="copy the database to OneDrive (timestamped)")
+    s.add_argument("--to", default=None,
+                   help="destination folder (default: OneDrive\\CMA_Backups)")
+    s.set_defaults(fn=cmd_backup)
 
     s = sub.add_parser("autorun",
                        help="watched folders → credit memo, end to end")

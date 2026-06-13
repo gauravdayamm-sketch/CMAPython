@@ -259,10 +259,14 @@ useful if the tool is ever fronted by a dashboard.
 | Committee/news classification fails | Ollama isn't running — start it (`ollama serve`) or use everything else, which never needs it |
 | Reconciliation below 100% | Usually a method difference (the guide's DSCR/DSO conventions were verified against the bank's own outputs); investigate only large gaps |
 
-**Data hygiene**: borrower data lives only in `db\cma.sqlite` and
-`data\*.docx` on this PC — both are excluded from the code repository.
-Back up `db\cma.sqlite` if you want to preserve recorded registry checks
-and news history; everything else regenerates from the exports.
+**Data hygiene & backup**: borrower data lives only in `db\cma.sqlite` and
+`workspace\output\*.docx` on this PC — both are excluded from the code
+repository. This database is your only copy of every ingested borrower,
+registry/filing finding, news item, the manual index and the Probe cache.
+Run **`.\cma backup`** periodically — it writes a timestamped, consistent
+copy to `OneDrive\CMA_Backups\` (so it syncs off the laptop) and keeps the
+latest 14. Pass `--to "<folder>"` for a different destination. To restore,
+copy a `cma_*.sqlite` file back to `db\cma.sqlite`.
 
 ---
 
@@ -288,6 +292,7 @@ cma.py norms INDUSTRY --set METRIC=VALUE ... [--source SRC]
                                      metrics: ebitda_margin pat_margin
                                      sales_growth current_ratio tol_tnw dso
 cma.py autorun [--no-committee]      watched folders -> credit memo (one shot)
+cma.py backup [--to FOLDER]          copy the database to OneDrive (timestamped)
 cma.py probe REPORT.pdf -b NAME      import a Probe42 company report (MCA check)
 cma.py filing AOC4.pdf -b NAME       tie out filed financials vs the CMA
 cma.py filing AUDIT.pdf -b NAME      read a scanned audit report (opinion only)

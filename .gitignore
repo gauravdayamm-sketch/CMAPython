@@ -44,3 +44,6 @@ workspace/**
 !workspace/
 !workspace/*/
 !workspace/**/README.txt
+
+# Local DB backups
+backups/
