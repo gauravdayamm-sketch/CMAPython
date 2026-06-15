@@ -34,7 +34,7 @@ weekly = run_weekly_forecast(opening_cash=50.0, cc_limit=80.0)
 print(f"  Verdict: {weekly.verdict}")
 if weekly.receipts_forecast:
     print(f"  Weeks forecast: {weekly.horizon_weeks}")
-    print(f"  Sample (first 3 weeks):")
+    print("  Sample (first 3 weeks):")
     for i in range(min(3, len(weekly.receipts_forecast))):
         print(f"    Wk +{i+1}: "
               f"In={weekly.receipts_forecast[i]:.1f}  "

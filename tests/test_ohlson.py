@@ -1,6 +1,5 @@
 """Unit tests for the Ohlson O-Score module."""
 import math
-import pytest
 
 from analytics.ohlson import compute_ohlson, compute_ohlson_from_dict, COEFFICIENTS
 

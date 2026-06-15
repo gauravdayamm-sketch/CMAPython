@@ -1,6 +1,5 @@
 """Tests for the autorun launcher and the finding-retraction fix."""
 import sqlite3
-import pytest
 
 from data import mca_filings
 from data.mca_filings import _record, _clear, filing_findings, import_filing

@@ -7,7 +7,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import sqlite3
-from data.news_intel import refresh_borrower_news, get_news, DB
+from data.news_intel import refresh_borrower_news, DB
 
 NAMES = [
     "ARROWIN METALTECH (INDIA) PRIVATE LIMITED",

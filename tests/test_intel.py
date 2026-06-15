@@ -1,8 +1,7 @@
 """Tests for news intelligence + registry due diligence (network/LLM mocked)."""
-import sqlite3
 import pytest
 
-from data import news_intel, registry_checks
+from data import news_intel
 from data.news_intel import (
     classify_headline, refresh_borrower_news, count_adverse,
 )

@@ -4,7 +4,7 @@ import csv
 import io
 import pytest
 
-from ingest.llms_export import parse_llms_set, ingest_llms_set
+from ingest.llms_export import ingest_llms_set
 from analytics.wc_assessment import assess_working_capital, form_v
 from analytics.ews import run_full_ews
 from analytics.scores import run_ensemble

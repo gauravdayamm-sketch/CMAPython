@@ -1,6 +1,5 @@
 """Unit tests for the 4-agent credit committee with Ollama fully mocked."""
 import sqlite3
-import pytest
 
 from agents import committee
 from agents.committee import run_committee, MODELS

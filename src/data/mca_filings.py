@@ -16,6 +16,7 @@ MCA filing intelligence — two documents the officer downloads from Probe42:
 Everything runs locally: pypdf for native text, Tesseract for OCR.
 """
 import datetime
+import os
 import pathlib
 import re
 import sqlite3
@@ -23,7 +24,9 @@ import sqlite3
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
 
-TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESSERACT = os.environ.get(
+    "TESSERACT_CMD",
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
 # Material-difference gate for the tie-out: flag when BOTH the relative gap
 # exceeds 10% AND the absolute gap exceeds ₹0.10 Cr (ignores rounding noise).
@@ -102,7 +105,7 @@ TIE_MAP = [
 
 def tie_out_aoc4(borrower_name, filing, db_path=None):
     """Compare filed AOC-4 figures against the matching CMA audited year."""
-    from analytics.wc_assessment import _load, compute_year_metrics
+    from analytics.wc_assessment import _load
     borrower, years, _, _ = _load(borrower_name, db_path or DB)
     if not borrower:
         return {"error": f"Borrower not found: {borrower_name}", "rows": []}

@@ -17,7 +17,10 @@ import sqlite3
 import pathlib
 from dataclasses import dataclass, field
 
+from log_utils import get_logger
 from analytics.wc_assessment import _load, compute_year_metrics
+
+log = get_logger("ews")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
@@ -585,8 +588,8 @@ def run_ews(ctx, manual_triggers=None, db_path=None):
         n_adverse = count_adverse(bid, db_path=db_path or DB)
         auto(24, "Negative news in mainstream/business media (12 months)",
              "Medium", n_adverse > 0, n_adverse)
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("News intel unavailable for EWS: %s", e)
 
     # Adverse public-registry findings — fed by data/registry_checks.py
     try:
@@ -601,8 +604,8 @@ def run_ews(ctx, manual_triggers=None, db_path=None):
                 "severity": severity, "triggered": True,
                 "source": f"registry:{registry}", "value": None,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Registry checks unavailable for EWS: %s", e)
 
     # MCA-filing findings — AOC-4 tie-out / audit-report opinion
     try:
@@ -616,8 +619,8 @@ def run_ews(ctx, manual_triggers=None, db_path=None):
                 "severity": f["severity"] or severity, "triggered": True,
                 "source": f"filing:{f['kind']}", "value": None,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("MCA filings unavailable for EWS: %s", e)
 
     for num in sorted(manual):
         if num in EWS_CATALOGUE:

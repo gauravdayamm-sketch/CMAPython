@@ -1,5 +1,4 @@
 """Unit tests for the causal cascade + Monte Carlo module."""
-import pytest
 
 from analytics.cascade import (
     CascadeInputs, SCENARIOS, _cascade_at_severity,

@@ -22,7 +22,7 @@ result = compute_ohlson(
 print(f"O-Score:          {result.o_score}")
 print(f"Prob of Default:  {result.prob_default:.1%}")
 print(f"Risk Band:        {result.risk_band}")
-print(f"\nContributions:")
+print("\nContributions:")
 for k, v in result.contributions.items():
     print(f"  {k:<10} {v:+.4f}")
 

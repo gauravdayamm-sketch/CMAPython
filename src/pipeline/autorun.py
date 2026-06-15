@@ -1,12 +1,12 @@
 """
 One-shot pipeline: watched folders → credit memo, with live progress.
 
-Folder layout (under <workspace>, default D:\\CMA_Python\\workspace):
-    cma\\          LLMS exports (BS/OS/Performance .xls/.csv) or a .xlsx workbook
-    probe42\\      Probe42 company report / Form AOC-4 / audited annual report PDFs
-    notes\\        the analyst's proposal note (.docx)  — optional
-    loan_manual\\  the loan manual (.md/.txt) — indexed once, kept stable
-    output\\       the finished credit memorandum lands here
+Folder layout (under <workspace>, default ./workspace):
+    cma/          LLMS exports (BS/OS/Performance .xls/.csv) or a .xlsx workbook
+    probe42/      Probe42 company report / Form AOC-4 / audited annual report PDFs
+    notes/        the analyst's proposal note (.docx)  — optional
+    loan_manual/  the loan manual (.md/.txt) — indexed once, kept stable
+    output/       the finished credit memorandum lands here
 
 The launcher ingests CMA data (which names the borrower), attaches every
 filing/registry/note finding to that borrower, runs the full assessment +
@@ -14,7 +14,6 @@ committee, and writes the memo — printing each step as it happens.
 """
 import datetime
 import pathlib
-import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]

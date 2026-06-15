@@ -1,6 +1,5 @@
 """Tests for the committee query generator."""
 import sqlite3
-import pytest
 
 from report.committee_queries import generate_queries
 from ingest.demo_fixture import BORROWER

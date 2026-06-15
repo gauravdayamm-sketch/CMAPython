@@ -31,7 +31,7 @@ print("Beneish M-Score:")
 if report.beneish:
     print(f"  M-Score:  {report.beneish.m_score}")
     print(f"  Verdict:  {report.beneish.verdict}")
-    print(f"  Components:")
+    print("  Components:")
     for k, v in report.beneish.components.items():
         print(f"    {k:<6} {v:+.4f}")
 

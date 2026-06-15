@@ -3,20 +3,22 @@
 # 2. Starts the FastAPI server on http://127.0.0.1:8000
 
 $projectRoot = $PSScriptRoot
-if (-not $projectRoot) { $projectRoot = "D:\CMA_Python" }
+if (-not $projectRoot) { $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 # --- Ollama -----------------------------------------------------------------
+$ollamaHost = if ($env:OLLAMA_HOST) { $env:OLLAMA_HOST } else { "http://localhost:11434" }
 $ollamaUp = $false
 try {
-    Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 -UseBasicParsing | Out-Null
+    Invoke-WebRequest -Uri "$ollamaHost/api/tags" -TimeoutSec 2 -UseBasicParsing | Out-Null
     $ollamaUp = $true
     Write-Host "Ollama already running."
 } catch {}
 
 if (-not $ollamaUp) {
+    $ollamaExe = if ($env:OLLAMA_PATH) { $env:OLLAMA_PATH } else { "ollama" }
     Write-Host "Starting Ollama..."
     Start-Process powershell -ArgumentList "-NoExit", "-Command",
-        "`$env:OLLAMA_MODELS='D:\OllamaModels'; & '$env:LOCALAPPDATA\Programs\Ollama\ollama.exe' serve"
+        "& '$ollamaExe' serve"
     Start-Sleep -Seconds 3
 }
 

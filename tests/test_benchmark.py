@@ -3,7 +3,7 @@ import sqlite3
 import pytest
 
 from analytics.benchmark import (
-    benchmark, set_norms, get_norms, set_industry, METRICS,
+    benchmark, set_norms, get_norms, set_industry,
 )
 from ingest.demo_fixture import BORROWER
 

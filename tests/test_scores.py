@@ -1,5 +1,4 @@
 """Tests for the Altman/Zmijewski/Ohlson distress ensemble and memo audit."""
-import pytest
 
 from analytics.scores import altman_z2, zmijewski_x, run_ensemble
 from agents.committee import verify_memo_numbers

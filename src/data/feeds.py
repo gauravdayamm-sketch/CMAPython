@@ -9,7 +9,10 @@ import sqlite3
 import pathlib
 import datetime
 import feedparser
-import pandas as pd
+
+from log_utils import get_logger
+
+log = get_logger("feeds")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
@@ -94,7 +97,7 @@ def save_macro_indicator(name: str, value: float, source: str = "NSE"):
                 VALUES (?, ?, ?, ?)
             """, (name, datetime.date.today().isoformat(), value, source))
     except Exception as e:
-        print(f"  DB save failed for {name}: {e}")
+        log.warning("DB save failed for %s: %s", name, e)
 
 
 # ── 2. RBI Regulatory Feed ───────────────────────────────────────────────────
@@ -159,8 +162,8 @@ def save_rbi_to_db(items: list):
                 ))
                 # rowcount is 0 when OR IGNORE skipped a duplicate link
                 saved += cur.rowcount
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("RBI item insert skipped: %s", e)
     return saved
 
 
@@ -183,52 +186,44 @@ def daily_refresh():
     Run all data fetches and cache results.
     Called by APScheduler at 2 AM daily.
     """
-    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M}] Daily refresh starting...")
+    log.info("Daily refresh starting...")
 
-    # RBI notifications
-    print("  Fetching RBI notifications...")
     items, err = fetch_rbi_updates("notifications", since_days=7)
     if err:
-        print(f"  RBI feed error: {err}")
+        log.warning("RBI feed error: %s", err)
     else:
         saved = save_rbi_to_db(items)
-        print(f"  RBI: {len(items)} items fetched, {saved} new saved to DB")
+        log.info("RBI: %d items fetched, %d new saved", len(items), saved)
 
-    # RBI press releases
-    print("  Fetching RBI press releases...")
     items2, err2 = fetch_rbi_updates("press_releases", since_days=7)
     if err2:
-        print(f"  RBI press releases error: {err2}")
+        log.warning("RBI press releases error: %s", err2)
     else:
         saved2 = save_rbi_to_db(items2)
-        print(f"  RBI press releases: {len(items2)} items, {saved2} new saved")
+        log.info("RBI press releases: %d items, %d new saved", len(items2), saved2)
 
-    # Adverse-media sweep for every borrower with CMA data
-    print("  Sweeping borrower news...")
+    log.info("Sweeping borrower news...")
     try:
         from data.news_intel import sweep_all_borrowers
         for name, r in sweep_all_borrowers().items():
-            print(f"  {name[:40]}: {r['new']} new, "
-                  f"{r['total_adverse']} adverse on record"
-                  if not r["error"] else f"  {name[:40]}: {r['error']}")
+            if r["error"]:
+                log.warning("%s: %s", name[:40], r["error"])
+            else:
+                log.info("%s: %d new, %d adverse on record",
+                         name[:40], r["new"], r["total_adverse"])
     except Exception as e:
-        print(f"  News sweep failed: {e}")
+        log.error("News sweep failed: %s", e)
 
-    # Sample NSE indices as macro indicators
-    print("  Fetching NSE market data...")
+    log.info("Fetching NSE market data...")
     for symbol in ["NIFTY 50", "NIFTY BANK"]:
         quote = fetch_nse_quote(symbol)
         if not quote.get("error"):
-            save_macro_indicator(
-                name=symbol,
-                value=quote["last_price"],
-                source="NSE"
-            )
-            print(f"  {symbol}: {quote['last_price']}")
+            save_macro_indicator(name=symbol, value=quote["last_price"], source="NSE")
+            log.info("%s: %s", symbol, quote["last_price"])
         else:
-            print(f"  {symbol}: {quote['error']}")
+            log.warning("%s: %s", symbol, quote["error"])
 
-    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M}] Daily refresh complete.")
+    log.info("Daily refresh complete.")
 
 
 # ── 4. Scheduler setup ────────────────────────────────────────────────────────
@@ -249,7 +244,7 @@ def start_scheduler():
         replace_existing=True,
     )
     scheduler.start()
-    print(f"Scheduler started — daily refresh at 02:00 IST")
+    log.info("Scheduler started — daily refresh at 02:00 IST")
     return scheduler
 
 

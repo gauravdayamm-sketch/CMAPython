@@ -11,6 +11,7 @@ Every output includes explicit attribution: which agent, which model, what promp
 Final memo carries mandatory AI-drafted disclaimer.
 """
 import hashlib
+import os
 import pathlib
 import re
 import sqlite3
@@ -18,9 +19,14 @@ from dataclasses import dataclass, field
 from typing import Optional
 from ollama import Client
 
+from log_utils import get_logger
+
+log = get_logger("committee")
+
 ROOT   = pathlib.Path(__file__).resolve().parents[2]
 DB     = ROOT / "db" / "cma.sqlite"
-OLLAMA = Client(host="http://localhost:11434")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA = Client(host=OLLAMA_HOST)
 
 # ── Model assignments ─────────────────────────────────────────────────────────
 MODELS = {
@@ -172,8 +178,8 @@ def _save_narrative(result):
                         VALUES (?, ?, ?, ?, ?)
                     """, (bid, ao.agent, ao.model,
                           ao.prompt_hash, ao.output))
-    except Exception:
-        pass   # DB save failure should not block the memo
+    except Exception as e:
+        log.warning("DB save failed for %s: %s", result.borrower_name, e)
 
 
 # ── Agent nodes ───────────────────────────────────────────────────────────────
@@ -374,8 +380,8 @@ def run_committee(
                 anomaly_data["ews_text"] = (
                     f"{ews.red_flag_verdict}\n" + "\n".join(lines)
                     if lines else ews.red_flag_verdict)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("EWS engine unavailable for committee: %s", e)
 
     if forecast_data is None:
         forecast_data = {
@@ -410,11 +416,11 @@ def run_committee(
                     parts.append(f"{s.model}: {s.score}{p} ({s.zone})")
             borrower_data["ensemble_text"] = (
                 " | ".join(parts) + f" => {ens.verdict}")
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Ensemble unavailable for %s: %s", borrower["name"], e)
 
     # ── Run the 4 agents in sequence ──────────────────────────────────────────
-    print(f"  [1/4] Forensic Analyst ({MODELS['forensic']})...")
+    log.info("[1/4] Forensic Analyst (%s)...", MODELS["forensic"])
     result.forensic = _run_forensic(anomaly_data)
     result.audit_log.append({
         "agent": "forensic",
@@ -423,7 +429,7 @@ def run_committee(
         "error": result.forensic.error,
     })
 
-    print(f"  [2/4] Liquidity Agent ({MODELS['liquidity']})...")
+    log.info("[2/4] Liquidity Agent (%s)...", MODELS["liquidity"])
     result.liquidity = _run_liquidity(forecast_data, dscr_data)
     result.audit_log.append({
         "agent": "liquidity",
@@ -432,7 +438,7 @@ def run_committee(
         "error": result.liquidity.error,
     })
 
-    print(f"  [3/4] Underwriting Executive ({MODELS['underwriter']})...")
+    log.info("[3/4] Underwriting Executive (%s)...", MODELS["underwriter"])
     result.underwriter = _run_underwriter(
         borrower_data, result.forensic, result.liquidity
     )
@@ -472,7 +478,7 @@ def run_committee(
                 + " — verify before sign-off."
             )
 
-    print(f"  [4/4] Supervisor ({MODELS['supervisor']})...")
+    log.info("[4/4] Supervisor (%s)...", MODELS["supervisor"])
     result.supervisor = _run_supervisor(result.final_memo)
     result.audit_log.append({
         "agent": "supervisor",

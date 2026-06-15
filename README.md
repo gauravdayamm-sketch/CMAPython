@@ -122,17 +122,32 @@ the API (`POST /cma/ingest`, `POST /cma/ingest-llms`, `GET /cma/assessment`,
 
 ## Setup
 
+### Linux / macOS
+```bash
+make install          # create venv + install deps
+make init-db          # create database tables
+make setup-test       # seed a test borrower
+# or all at once:
+make install && make init-db && make setup-test
+```
+
+### Windows (PowerShell)
 ```powershell
-# 1. Virtual environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# 2. Create the database and seed a test borrower
 python scripts\init_db.py
 python src\setup_test_borrower.py
+```
 
-# 3. (For the credit committee) install Ollama and pull the models
+### Configuration
+Copy `.env.example` to `.env` and fill in your values:
+```bash
+cp .env.example .env
+```
+
+### Ollama (for AI committee)
+```bash
 ollama pull llama3.2:3b
 ollama pull qwen2.5:7b
 ollama pull llama3.1:8b
@@ -186,14 +201,38 @@ interpreter pointed at `venv\Scripts\python.exe`). The VBA buttons call
 
 ## Tests
 
-```powershell
-.\venv\Scripts\python.exe -m pytest
+```bash
+make test             # pytest with verbose output
+# or:
+.venv/bin/python -m pytest
 ```
 
 The pytest suite lives in `tests/` and uses temporary databases and mocked
 network/LLM calls — it does not touch `db/cma.sqlite`, the internet, or
 Ollama. The CMA tests fill a copy of the real template with a synthetic
 borrower, so the parser is exercised against the genuine sheet layout.
+
+## Lint & Type Checking
+
+```bash
+make lint             # ruff check
+make typecheck        # mypy (best-effort, some modules untyped)
+```
+
+## Docker
+
+```bash
+make docker-build     # build the image
+make docker-run       # run on port 8000
+# or manually:
+docker build -t cma-python .
+docker run --rm -p 8000:8000 -v $(pwd)/db:/app/db cma-python
+```
+
+## CI/CD
+
+GitHub Actions workflow at `.github/workflows/ci.yml` — runs tests on
+push/PR for Python 3.10–3.12, plus lint and type checking.
 
 ## Notes
 
@@ -204,3 +243,5 @@ borrower, so the parser is exercised against the genuine sheet layout.
   stored in the `narrative` table for auditability.
 - `SIZE_DEFLATOR` in `ohlson.py` (median Indian corporate total assets, ₹ Cr)
   should be refreshed periodically.
+- Logs are written to `logs/cma_YYYYMMDD.log` (set `CMA_LOG_LEVEL=DEBUG` for
+  verbose output).

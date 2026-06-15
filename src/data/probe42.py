@@ -6,7 +6,7 @@ conserve the per-call quota, and records the findings into the registry
 due-diligence framework so the RFA logic and committee queries react
 automatically.
 
-Setup: put your key in D:\\CMA_Python\\.env (git-ignored, never committed):
+Setup: put your key in .env (git-ignored, never committed) — see .env.example:
 
     PROBE42_API_KEY=xxxxxxxxxxxxxxxx
     # optional overrides:
@@ -46,8 +46,8 @@ def _client():
     key = _env("PROBE42_API_KEY")
     if not key:
         raise RuntimeError(
-            "PROBE42_API_KEY not set. Add it to D:\\CMA_Python\\.env "
-            "(the file is git-ignored).")
+            "PROBE42_API_KEY not set. Add it to .env "
+            "(see .env.example — the file is git-ignored).")
     base = _env("PROBE42_BASE", "https://api.probe42.in/probe_pro")
     return httpx.Client(
         base_url=base, timeout=30,

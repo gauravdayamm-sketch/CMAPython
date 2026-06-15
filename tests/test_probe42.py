@@ -3,10 +3,8 @@
 Text fixtures mirror the real Probe42 report layout (validated against an
 actual SBI-marked report for Arrowin Metaltech).
 """
-import sqlite3
-import pytest
 
-from data.probe42 import parse_report_text, import_report
+from data.probe42 import parse_report_text
 from data.registry_checks import get_checks
 from analytics.ews import run_full_ews
 from ingest.demo_fixture import BORROWER

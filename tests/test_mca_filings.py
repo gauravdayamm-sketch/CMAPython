@@ -1,10 +1,8 @@
 """Tests for AOC-4 tie-out and audit-report narrative (no PDF/OCR needed)."""
-import sqlite3
 import pytest
 
 from data.mca_filings import (
     parse_aoc4_text, tie_out_aoc4, analyse_report_text, _record,
-    filing_findings,
 )
 from analytics.ews import run_full_ews
 from ingest.demo_fixture import BORROWER

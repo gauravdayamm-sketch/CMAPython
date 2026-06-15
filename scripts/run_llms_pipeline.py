@@ -14,12 +14,12 @@ if hasattr(sys.stdout, "reconfigure"):
 from ingest.llms_export import (
     find_borrower_sets, ingest_llms_set, reconcile_with_bank,
 )
-from analytics.wc_assessment import assess_working_capital, form_v
+from analytics.wc_assessment import assess_working_capital
 from analytics.ews import run_full_ews
 from analytics.scores import run_ensemble
 from analytics.forecast import scrutinize_projections
 
-folder = sys.argv[1] if len(sys.argv) > 1 else r"D:\Work\ZCC 05112025"
+folder = sys.argv[1] if len(sys.argv) > 1 else input("Enter folder path: ") or "."
 sets = find_borrower_sets(folder)
 print(f"Found {len(sets)} borrower export sets: {', '.join(sets)}\n")
 

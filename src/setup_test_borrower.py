@@ -51,7 +51,7 @@ def setup_test_data():
                 VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (borrower_id, fy, ta, tl, ca, cl, wc, ni, ebitda, ffo, dep, sales))
 
-        print(f"Inserted 4 years of financial data")
+        print("Inserted 4 years of financial data")
 
         # Verify
         rows = conn.execute("""

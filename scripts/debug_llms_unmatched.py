@@ -7,8 +7,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from ingest.llms_export import (
-    read_table, _parse_header, _norm, _num, _file_col,
-    BS_LABELS, OS_LABELS, BS_TOTAL_CHECKS, OS_TOTAL_CHECKS,
+    read_table, _parse_header, _norm, _num, BS_LABELS, OS_LABELS, BS_TOTAL_CHECKS, OS_TOTAL_CHECKS,
     SECTION_KEYWORDS, DATA_COL0,
 )
 

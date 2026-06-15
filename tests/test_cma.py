@@ -7,10 +7,10 @@ import sqlite3
 import pytest
 
 from ingest.cma_workbook import (
-    build_year_columns, parse_workbook, save_to_db, ingest_workbook,
+    build_year_columns, parse_workbook, save_to_db,
 )
 from ingest.demo_fixture import BORROWER
-from analytics.wc_assessment import assess_working_capital, form_v
+from analytics.wc_assessment import assess_working_capital
 from analytics.forecast import scrutinize_projections
 
 

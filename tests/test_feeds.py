@@ -1,7 +1,6 @@
 """Unit tests for the data feeds module (network fully mocked)."""
 import sqlite3
 import time
-import pytest
 
 from data import feeds
 

@@ -1,6 +1,5 @@
 """Tests for the EWS engine: red flags, exception engine, RBI EWS + RFA rule."""
 import sqlite3
-import pytest
 
 from ingest.demo_fixture import BORROWER
 from analytics.ews import (
@@ -105,8 +104,6 @@ def test_verdict_ladder():
 
 def test_project_finance_overlay_flags(ingested, tmp_path):
     """PF under-construction borrowers get the regulatory VERIFY flags."""
-    import openpyxl
-    from ingest.cma_workbook import ingest_workbook
     data, bid, expected, db = ingested
     with sqlite3.connect(db) as conn:
         conn.execute("""

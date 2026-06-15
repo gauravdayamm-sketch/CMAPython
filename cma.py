@@ -377,7 +377,7 @@ def cmd_manual(args):
         return
     if manual_indexed() == 0:
         sys.exit("Manual not indexed yet. Run:\n"
-                 "  cma manual --index \"D:\\path\\to\\loan-manual.md\"")
+                 "  cma manual --index \"path/to/loan-manual.md\"")
     query = " ".join(args.query or [])
     if not query:
         sys.exit("Give a question, e.g.:  cma manual what is MPBF method 2")

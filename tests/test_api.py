@@ -5,7 +5,6 @@ with it the APScheduler daily-refresh job) must not start during tests.
 DB-backed endpoints are covered via their underlying modules in the other
 test files.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app

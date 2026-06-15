@@ -18,6 +18,10 @@ import datetime
 import pathlib
 import sqlite3
 
+from log_utils import get_logger
+
+log = get_logger("memo")
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DB   = ROOT / "db" / "cma.sqlite"
 
@@ -162,7 +166,6 @@ def _latest_narrative(borrower_name, db_path):
 def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
     """Build the .docx. Returns the output path."""
     from docx import Document
-    from docx.shared import Pt
 
     from analytics.wc_assessment import assess_working_capital, form_v
     from analytics.ews import run_full_ews
@@ -311,8 +314,8 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
                        "(100 = best in book). Peers are other borrowers "
                        "assessed through this tool; industry norms are "
                        "sector medians from public rating-agency data.")
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Benchmark unavailable for memo: %s", e)
 
     # 5 ── Red flags / EWS
     _heading(doc, "5. Red Flags, Exceptions & RBI EWS")
@@ -365,8 +368,8 @@ def generate_credit_memo(borrower_name=None, out_path=None, db_path=None):
                            "Checked on", "Remarks"))
             _note(doc, "Registries marked UNCHECKED or STALE (>90 days) "
                        "appear as committee queries in section 7.")
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Market intel unavailable for memo: %s", e)
 
     # 6 ── Projection scrutiny
     _heading(doc, "6. Projection Scrutiny (vs ETS bands)")
